@@ -1180,6 +1180,7 @@ function termineFilterUI() {
     + pill('datum','woche','Diese Woche')
     + pill('datum','monat','Dieser Monat')
     + pill('datum','jahr','Aktuelles Jahr')
+    + pill('datum','dauer','Dauerveranstaltungen')
     + '</div>';
   // Region: in einer Zeile, kompakte Labels
   html += '<div class="filter-gruppe filter-bezirk"><span class="filter-label">📍 Region:</span>'
@@ -1233,20 +1234,28 @@ function termineFilterAnwenden(items) {
     var dEnde = item.datumBisIso || d;
     if (dEnde < heuteStr) return false;
 
-    // Period-Filter: ÜBERLAPPUNG zwischen Event-Zeitraum und Period-Zeitraum prüfen.
-    // So erscheinen sowohl Einzeltermine als auch durchgehende Veranstaltungen
-    // (Ausstellungen, mehrtägige Märkte) in jedem Period-Filter, in dem sie aktiv sind.
-    // Wiederkehrende Termine (z. B. wöchentliche Kräuterführung) sind in der
-    // Datenquelle bereits als jeweils einzelner Eintrag pro Datum erfasst und
-    // erscheinen daher automatisch korrekt: 1x pro Woche, 4x pro Monat usw.
-    if (TERMIN_FILTER.datum !== 'alle') {
+    // Mehrtaegig = "bis [Datum]"-Eintrag (Festival, Ausstellung, Kurs ueber mehrere Tage)
+    var istMehrtaegig = !!(item.datumBisIso && item.datumBisIso !== item.datumIso);
+
+    if (TERMIN_FILTER.datum === 'dauer') {
+      // Rubrik "Dauerveranstaltungen": NUR mehrtaegige Events (alle, egal ob laufend oder erst startend)
+      if (!istMehrtaegig) return false;
+    } else if (TERMIN_FILTER.datum === 'alle') {
+      // "Alle": mehrtaegige Events ausblenden -- die haben eine eigene Rubrik.
+      // So werden die Einzeltermine nicht von "laeuft bis..."-Eintraegen ueberschwemmt.
+      if (istMehrtaegig) return false;
+    } else {
+      // heute/woche/monat/jahr: Ueberlappung Event-Zeitraum mit Period-Zeitraum.
+      // Mehrtaegige Events erscheinen NUR, wenn sie aktuell laufen -- ein
+      // Festival, das erst in 3 Monaten startet, wird in "Heute" rausgefiltert,
+      // ein laufendes Festival (03.-06.06., heute 04.06.) bleibt drin.
       var periodEnde;
       if (TERMIN_FILTER.datum === 'heute')      periodEnde = heuteStr;
       else if (TERMIN_FILTER.datum === 'woche') periodEnde = sonntagStr;
       else if (TERMIN_FILTER.datum === 'monat') periodEnde = monatsendeStr;
       else if (TERMIN_FILTER.datum === 'jahr')  periodEnde = jahresende;
-      // Überlappung: Event-Start <= Period-Ende UND Event-Ende >= heuteStr
-      // (letzteres oben bereits geprüft)
+      // Event-Start <= Period-Ende (Event hat im Period oder davor begonnen).
+      // Event-Ende >= heuteStr ist oben schon geprueft.
       if (d > periodEnde) return false;
     }
 
