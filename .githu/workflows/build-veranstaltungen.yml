@@ -1,0 +1,46 @@
+name: Veranstaltungen DataHub aktualisieren
+
+# Holt naechtlich die Veranstaltungen der gespeicherten Suche
+# "gmw-veranstaltungen-ww" aus dem DataHub RLP, erzeugt
+# veranstaltungen-datahub.js und committet die Datei, wenn sie sich geaendert hat.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'      # taeglich 03:00 UTC (~04:00/05:00 Uhr DE)
+  workflow_dispatch: {}       # erlaubt manuelles Ausloesen ueber die GitHub-Oberflaeche
+
+permissions:
+  contents: write             # noetig, damit die Action zurueck ins Repo committen darf
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Veranstaltungen aus DataHub generieren
+        env:
+          DATAHUB_ENDPOINT: gmw-veranstaltungen-ww
+          DATAHUB_TOKEN: ${{ secrets.DATAHUB_TOKEN }}
+        run: |
+          python tools/build_veranstaltungen.py \
+            --endpoint "$DATAHUB_ENDPOINT" \
+            -o veranstaltungen-datahub.js
+
+      - name: Aenderungen committen (nur bei Diff)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- veranstaltungen-datahub.js; then
+            echo "Keine Aenderungen - nichts zu committen."
+          else
+            git add veranstaltungen-datahub.js
+            git commit -m "chore: Veranstaltungen DataHub aktualisiert ($(date +%F))"
+            git push
+          fi
