@@ -2033,6 +2033,8 @@ function renderRouteDetail(ziel, item, info, zurueck) {
 
   // FOTO-SEKTION: standardmaessig ausgeklappt unsichtbar, wird via
   // toggleTourFoto() ein-/ausgeblendet. Steht direkt unter dem Sticky-Header.
+  // !important auf den Bildgroessen, damit globale img-Regeln (z.B. max-height
+  // fuer Listen-Thumbnails) das Foto hier nicht zusammendruecken.
   if (hatBild) {
     var creditHtml = '';
     if (item._bildUrheber) {
@@ -2041,10 +2043,10 @@ function renderRouteDetail(ziel, item, info, zurueck) {
         creditHtml += ' (<a href="' + escapeHtml(item._bildLizenz) + '" target="_blank" rel="noopener">Lizenz</a>)';
       }
     }
-    html += '<div id="' + fotoSecId + '" class="tour-foto-sektion" style="display:none;margin:8px 0;">'
+    html += '<div id="' + fotoSecId + '" class="tour-foto-sektion" style="display:none;margin:12px 0;line-height:0;">'
       +   '<img loading="lazy" src="' + escapeHtml(item._bild) + '" alt="' + escapeHtml(n.titel) + '" '
-      +        'style="width:100%;height:auto;border-radius:8px;display:block;">'
-      +   (creditHtml ? '<div class="tour-foto-credit" style="font-size:0.85em;color:#666;margin-top:4px;text-align:right;">' + creditHtml + '</div>' : '')
+      +        'style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;max-height:none !important;border-radius:8px;">'
+      +   (creditHtml ? '<div class="tour-foto-credit" style="font-size:0.85em;line-height:1.4;color:#666;margin-top:6px;text-align:left;">' + creditHtml + '</div>' : '')
       + '</div>';
   }
 
@@ -4444,7 +4446,10 @@ if (document.readyState === 'loading') {
 
 // ─── FOTO-TOGGLE (fuer den "Foto"-Button auf Wandertour-Detailseiten) ─────
 // Schaltet die Foto-Sektion (Bild + Bildnachweis) ein/aus und passt den
-// Button-Text entsprechend an. Wird inline vom onclick-Handler aufgerufen.
+// Button-Text entsprechend an. Beim Aufklappen wird so gescrollt, dass das
+// Foto direkt UNTER dem Sticky-Header beginnt (sonst wird's auf dem Smartphone
+// unter den Buttons versteckt). Erst nach dem Laden des Bildes scrollen, sonst
+// stimmt die berechnete Hoehe nicht.
 function toggleTourFoto(elemId, btn) {
   var el = document.getElementById(elemId);
   if (!el) return;
@@ -4452,12 +4457,34 @@ function toggleTourFoto(elemId, btn) {
   if (sichtbar) {
     el.style.display = 'none';
     if (btn) btn.innerHTML = '📷 Foto';
+    return;
+  }
+  el.style.display = 'block';
+  if (btn) btn.innerHTML = '✖ Foto';
+
+  function scrolleFotoSichtbar() {
+    try {
+      var sticky = document.querySelector('.sticky-detail');
+      var headerH = sticky ? sticky.getBoundingClientRect().height : 0;
+      var rect = el.getBoundingClientRect();
+      // Aktuelle Seiten-Scroll-Position + Foto-Position im Viewport
+      //   - abzueglich Sticky-Header-Hoehe
+      //   - minus kleine Atem-Marge (12 px), damit's nicht direkt klebt
+      var ziel = window.pageYOffset + rect.top - headerH - 12;
+      if (ziel < 0) ziel = 0;
+      window.scrollTo({ top: ziel, behavior: 'smooth' });
+    } catch (e) { /* Fallback: nichts tun */ }
+  }
+
+  // Erst nach dem Bildladen scrollen, sonst kennen wir die finale Hoehe nicht.
+  var img = el.querySelector('img');
+  if (img && !img.complete) {
+    img.addEventListener('load',  function() { setTimeout(scrolleFotoSichtbar, 30); }, { once: true });
+    img.addEventListener('error', function() { setTimeout(scrolleFotoSichtbar, 30); }, { once: true });
+    // Falls das Bild aus irgendwelchen Gruenden nicht laedt: trotzdem nach
+    // 400 ms scrollen, damit der Nutzer nicht im Nirgendwo haengt.
+    setTimeout(scrolleFotoSichtbar, 400);
   } else {
-    el.style.display = 'block';
-    if (btn) btn.innerHTML = '✖ Foto';
-    // Sanft in den sichtbaren Bereich scrollen
-    setTimeout(function() {
-      try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
-    }, 50);
+    setTimeout(scrolleFotoSichtbar, 60);
   }
 }
