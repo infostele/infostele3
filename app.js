@@ -4447,9 +4447,13 @@ if (document.readyState === 'loading') {
 // ─── FOTO-TOGGLE (fuer den "Foto"-Button auf Wandertour-Detailseiten) ─────
 // Schaltet die Foto-Sektion (Bild + Bildnachweis) ein/aus und passt den
 // Button-Text entsprechend an. Beim Aufklappen wird so gescrollt, dass das
-// Foto direkt UNTER dem Sticky-Header beginnt (sonst wird's auf dem Smartphone
-// unter den Buttons versteckt). Erst nach dem Laden des Bildes scrollen, sonst
-// stimmt die berechnete Hoehe nicht.
+// Foto direkt UNTER dem Sticky-Header beginnt.
+//
+// Hintergrund: window.scrollTo({behavior:'smooth'}) ist auf iOS Safari
+// unzuverlaessig. Der robuste Weg ist scrollIntoView() PLUS dynamisch
+// gesetzter scroll-margin-top, damit der Browser den Sticky-Header-Offset
+// selbst beruecksichtigt. Funktioniert auf Android Chrome, iOS Safari 14+
+// und Desktop. Fuer aeltere Browser bleibt der manuelle scrollTo-Fallback.
 function toggleTourFoto(elemId, btn) {
   var el = document.getElementById(elemId);
   if (!el) return;
@@ -4465,26 +4469,45 @@ function toggleTourFoto(elemId, btn) {
   function scrolleFotoSichtbar() {
     try {
       var sticky = document.querySelector('.sticky-detail');
-      var headerH = sticky ? sticky.getBoundingClientRect().height : 0;
+      var headerH = sticky ? Math.round(sticky.getBoundingClientRect().height) : 0;
+      var marge = 12;
+
+      // Primaerweg: scroll-margin-top setzen, dann scrollIntoView. Der Browser
+      // berechnet die Zielposition selbst und beruecksichtigt dabei
+      // ggf. die iOS-Adressleiste, dynamische Viewport-Hoehe usw.
+      if (el.scrollIntoView) {
+        el.style.scrollMarginTop = (headerH + marge) + 'px';
+        try {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        } catch (e1) {
+          // Aelteres iOS unterstuetzt das options-Objekt nicht
+          el.scrollIntoView(true);
+          return;
+        }
+      }
+
+      // Fallback fuer ganz alte Browser
       var rect = el.getBoundingClientRect();
-      // Aktuelle Seiten-Scroll-Position + Foto-Position im Viewport
-      //   - abzueglich Sticky-Header-Hoehe
-      //   - minus kleine Atem-Marge (12 px), damit's nicht direkt klebt
-      var ziel = window.pageYOffset + rect.top - headerH - 12;
+      var aktuell = window.pageYOffset || document.documentElement.scrollTop || 0;
+      var ziel = aktuell + rect.top - headerH - marge;
       if (ziel < 0) ziel = 0;
-      window.scrollTo({ top: ziel, behavior: 'smooth' });
-    } catch (e) { /* Fallback: nichts tun */ }
+      if (window.scrollTo) window.scrollTo(0, ziel);
+      else { document.documentElement.scrollTop = ziel; document.body.scrollTop = ziel; }
+    } catch (e) { /* nichts tun */ }
   }
 
-  // Erst nach dem Bildladen scrollen, sonst kennen wir die finale Hoehe nicht.
+  // Erst nach dem Bildladen scrollen, sonst kennt der Browser die finale
+  // Bildhoehe noch nicht und scrollt an die falsche Position.
   var img = el.querySelector('img');
   if (img && !img.complete) {
-    img.addEventListener('load',  function() { setTimeout(scrolleFotoSichtbar, 30); }, { once: true });
-    img.addEventListener('error', function() { setTimeout(scrolleFotoSichtbar, 30); }, { once: true });
-    // Falls das Bild aus irgendwelchen Gruenden nicht laedt: trotzdem nach
-    // 400 ms scrollen, damit der Nutzer nicht im Nirgendwo haengt.
-    setTimeout(scrolleFotoSichtbar, 400);
+    var fired = false;
+    var go = function() { if (fired) return; fired = true; setTimeout(scrolleFotoSichtbar, 30); };
+    img.addEventListener('load',  go, { once: true });
+    img.addEventListener('error', go, { once: true });
+    // Absolute Sicherheitsleine: nach 500 ms auch ohne Load-Event scrollen
+    setTimeout(go, 500);
   } else {
-    setTimeout(scrolleFotoSichtbar, 60);
+    setTimeout(scrolleFotoSichtbar, 50);
   }
 }
