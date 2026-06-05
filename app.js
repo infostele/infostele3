@@ -4038,8 +4038,9 @@ function zeigeEigenenStandort(map, callback) {
 //
 // Die Entscheidung wird nicht gespeichert; der Banner erscheint
 // bei jedem neuen Karten-Aufruf erneut.
-function fuegeStandortBannerHinzu(map) {
+function fuegeStandortBannerHinzu(map, callbacks) {
   if (!navigator.geolocation) return;  // Browser ohne Geolocation → kein Banner
+  callbacks = callbacks || {};
 
   // Karten-Container ermitteln (Leaflet legt die Karte in ein <div>)
   var container = map.getContainer();
@@ -4115,8 +4116,14 @@ function fuegeStandortBannerHinzu(map) {
       zeigeEigenenStandort(map, function(erfolg, fehlerCode) {
         if (erfolg) {
           bannerEntfernen();
+          // Koordinaten aus dem gerade gesetzten Marker auslesen und Callback ausloesen
+          if (callbacks.onJa && window._eigenerStandortMarker) {
+            var ll = window._eigenerStandortMarker.getLatLng();
+            callbacks.onJa([ll.lat, ll.lng]);
+          }
         } else {
           statusFehlerZeigen(fehlerCode);
+          if (callbacks.onFehler) callbacks.onFehler(fehlerCode);
         }
       });
     });
@@ -4125,13 +4132,19 @@ function fuegeStandortBannerHinzu(map) {
   // Nein-Button: einfach schließen
   var neinBtn = banner.querySelector('.standort-banner-btn.nein');
   if (neinBtn) {
-    neinBtn.addEventListener('click', bannerEntfernen);
+    neinBtn.addEventListener('click', function() {
+      bannerEntfernen();
+      if (callbacks.onNein) callbacks.onNein();
+    });
   }
 
   // ×-Button: einfach schließen
   var closeBtn = banner.querySelector('.standort-banner-close');
   if (closeBtn) {
-    closeBtn.addEventListener('click', bannerEntfernen);
+    closeBtn.addEventListener('click', function() {
+      bannerEntfernen();
+      if (callbacks.onNein) callbacks.onNein();
+    });
   }
 }
 
@@ -4992,9 +5005,23 @@ function renderListenKarte(ziel, slug) {
     });
   }
 
+  // Filter-State pro Slug merken (bleibt erhalten beim Hin- und Herwechseln
+  // zwischen Karte und Detail-Seite, da window beim SPA-Navigieren bestehen bleibt)
+  window._listenKarteState = window._listenKarteState || {};
+  var state = window._listenKarteState[slug];
+  if (!state) {
+    state = window._listenKarteState[slug] = {
+      typ: {},                  // {key: true} fuer aktivierte Typen
+      bezirk: {},               // {key: true} fuer aktivierte Bezirke
+      standortGefragt: false,   // hat der Banner schon mal gefragt?
+      eigenerStandort: null     // [lat, lng] falls erlaubt
+    };
+  }
+
   var mapId = 'lkarte-' + Math.random().toString(36).slice(2);
 
   // Filter-Sektion: Checkboxen fuer Typen + Bezirke
+  // INITIAL alle leer (nur wenn State es anders sagt = restore)
   var typOpts = (info.filterTypen || []).filter(function(t) { return t.key !== 'alle'; });
   var bezOpts = (info.filterBezirke || []).filter(function(b) { return b.key !== 'alle'; });
 
@@ -5011,8 +5038,9 @@ function renderListenKarte(ziel, slug) {
       + '<span class="listen-karte-filter-label">' + escapeHtml(info.filterLabel || 'Art') + ':</span>';
     for (var i = 0; i < typOpts.length; i++) {
       var t = typOpts[i];
+      var checkedAttr = state.typ[t.key] ? ' checked' : '';
       html += '<label class="listen-karte-check">'
-        + '<input type="checkbox" checked data-lkfilter="typ" data-lkkey="' + escapeHtml(t.key) + '"> '
+        + '<input type="checkbox"' + checkedAttr + ' data-lkfilter="typ" data-lkkey="' + escapeHtml(t.key) + '"> '
         + escapeHtml(t.label) + '</label>';
     }
     html += '</div>';
@@ -5023,17 +5051,16 @@ function renderListenKarte(ziel, slug) {
       + '<span class="listen-karte-filter-label">📍 Region:</span>';
     for (var j = 0; j < bezOpts.length; j++) {
       var b = bezOpts[j];
+      var checkedAttrB = state.bezirk[b.key] ? ' checked' : '';
       html += '<label class="listen-karte-check">'
-        + '<input type="checkbox" checked data-lkfilter="bezirk" data-lkkey="' + escapeHtml(b.key) + '"> '
+        + '<input type="checkbox"' + checkedAttrB + ' data-lkfilter="bezirk" data-lkkey="' + escapeHtml(b.key) + '"> '
         + escapeHtml(b.label) + '</label>';
     }
     html += '</div>';
   }
 
-  // Standort-Button + Zaehler
   html += '<div class="listen-karte-filter-gruppe">'
-    + '<button class="listen-karte-standort-btn" type="button" onclick="zeigeMeinenStandort(\'' + mapId + '\')">📍 Mein Standort</button>'
-    + '<small id="' + mapId + '-zaehler" style="margin-left:8px;">'
+    + '<small id="' + mapId + '-zaehler">'
     + mitGeo.length + ' Einträge mit Standort'
     + (ohneGeoCount > 0 ? ' (' + ohneGeoCount + ' ohne Geo-Daten)' : '')
     + '</small></div>';
@@ -5048,12 +5075,12 @@ function renderListenKarte(ziel, slug) {
 
   // Karte initialisieren
   ladeKartenPlugins().then(function() {
-    initListenKarte(mapId, slug, info, mitGeo, modus);
+    initListenKarte(mapId, slug, info, mitGeo, modus, state);
   });
 }
 
 
-function initListenKarte(mapId, slug, info, mitGeo, modus) {
+function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
   if (!window.L) return;
   var map = L.map(mapId);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -5065,16 +5092,9 @@ function initListenKarte(mapId, slug, info, mitGeo, modus) {
 
   function refreshMarker() {
     markerGroup.clearLayers();
-    // Aktivierte Filter sammeln
-    var aktivTyp = {}, aktivBez = {};
-    var typChecks = document.querySelectorAll('[data-lkfilter="typ"]');
-    for (var i = 0; i < typChecks.length; i++) {
-      if (typChecks[i].checked) aktivTyp[typChecks[i].getAttribute('data-lkkey')] = true;
-    }
-    var bezChecks = document.querySelectorAll('[data-lkfilter="bezirk"]');
-    for (var k = 0; k < bezChecks.length; k++) {
-      if (bezChecks[k].checked) aktivBez[bezChecks[k].getAttribute('data-lkkey')] = true;
-    }
+    // Aktivierte Filter aus dem State holen (single source of truth)
+    var aktivTyp = state.typ;
+    var aktivBez = state.bezirk;
     var typFilterAktiv = Object.keys(aktivTyp).length > 0 && (info.filterTypen && info.filterTypen.length);
     var bezFilterAktiv = Object.keys(aktivBez).length > 0 && (info.filterBezirke && info.filterBezirke.length);
 
@@ -5101,67 +5121,77 @@ function initListenKarte(mapId, slug, info, mitGeo, modus) {
       gezeigt++;
     }
 
-    if (bounds.length) {
+    // Bounds nur beim ersten Aufruf (oder wenn alles ausgefiltert ist) setzen, nicht
+    // bei jeder Filter-Aenderung -- sonst springt die Karte irritierend hin und her.
+    if (bounds.length && !map._listenKarteBoundsGesetzt) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-    } else {
-      map.setView([50.65, 7.85], 10);   // Westerwald-Zentrum
+      map._listenKarteBoundsGesetzt = true;
+    } else if (!bounds.length && !map._listenKarteBoundsGesetzt) {
+      map.setView([50.65, 7.85], 10);   // Westerwald-Zentrum als Fallback
+      map._listenKarteBoundsGesetzt = true;
     }
     var zaehlEl = document.getElementById(mapId + '-zaehler');
     if (zaehlEl) {
+      var ohne = (mitGeo.length - gezeigt);
       zaehlEl.textContent = gezeigt + ' Einträge angezeigt' +
-        (mitGeo.length !== gezeigt ? ' (' + (mitGeo.length - gezeigt) + ' durch Filter ausgeblendet)' : '');
+        (ohne > 0 ? ' (' + ohne + ' durch Filter ausgeblendet)' : '');
     }
   }
 
+  // Event-Listener fuer alle Filter-Checkboxen: Update State + Refresh
   var allChecks = document.querySelectorAll('[data-lkfilter]');
   for (var c = 0; c < allChecks.length; c++) {
-    allChecks[c].addEventListener('change', refreshMarker);
+    (function(cb) {
+      cb.addEventListener('change', function() {
+        var grp = cb.getAttribute('data-lkfilter');   // 'typ' oder 'bezirk'
+        var key = cb.getAttribute('data-lkkey');
+        if (cb.checked) state[grp][key] = true;
+        else delete state[grp][key];
+        refreshMarker();
+      });
+    })(allChecks[c]);
   }
 
   refreshMarker();
+  // Layout-Race-Condition: Karte braucht eine Pause, bis das Wrap-Element seine
+  // Hoehe hat, bevor sie sich selbst layoutet.
   setTimeout(function() { map.invalidateSize(); }, 120);
 
-  // Karte als globale Referenz fuer den Standort-Button
-  window._aktuelleListenKarte = map;
+  // STANDORT-HANDLING ----------------------------------------------------
+  if (state.eigenerStandort) {
+    // Bei Wiederbesuch: Standort schon bekannt → Marker direkt setzen, ohne Banner
+    setzeListenKarteStandortMarker(map, state.eigenerStandort[0], state.eigenerStandort[1]);
+  } else if (!state.standortGefragt) {
+    // Erster Besuch: Banner anzeigen (wie bei Wanderkarten-Etappen)
+    fuegeStandortBannerHinzu(map, {
+      onJa: function(coords) {
+        state.standortGefragt = true;
+        state.eigenerStandort = coords;
+      },
+      onNein: function() {
+        state.standortGefragt = true;
+        // eigenerStandort bleibt null -> bei naechstem Aufruf wird NICHT erneut gefragt
+      },
+      onFehler: function() {
+        state.standortGefragt = true;
+      }
+    });
+  }
+  // Wenn state.standortGefragt === true und kein eigenerStandort → Nutzer hat "Nein" gesagt: nichts tun
 }
 
 
-// Zeigt den eigenen Standort auf der Karte an (per Geolocation-API)
-function zeigeMeinenStandort(mapId) {
-  var map = window._aktuelleListenKarte;
-  if (!map) return;
-  if (!navigator.geolocation) {
-    alert('Dein Browser unterstützt keine Standort-Abfrage.');
-    return;
-  }
-  var btnEl = document.querySelector('.listen-karte-standort-btn');
-  if (btnEl) btnEl.textContent = 'Standort wird ermittelt...';
-  navigator.geolocation.getCurrentPosition(function(pos) {
-    if (btnEl) btnEl.textContent = '📍 Mein Standort';
-    var lat = pos.coords.latitude;
-    var lng = pos.coords.longitude;
-    // Marker fuer eigenen Standort (eindeutige Farbe)
-    if (window._eigenerStandortMarker) {
-      map.removeLayer(window._eigenerStandortMarker);
-    }
-    var standortIcon = L.divIcon({
-      className: 'listen-karte-standort-icon',
-      html: '<div style="width:18px;height:18px;background:#2196f3;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9]
-    });
-    window._eigenerStandortMarker = L.marker([lat, lng], { icon: standortIcon })
-      .addTo(map)
-      .bindPopup('<strong>📍 Mein Standort</strong>')
-      .openPopup();
-    // Auf den Standort zoomen, aber nicht zu nah
-    map.setView([lat, lng], 12);
-  }, function(err) {
-    if (btnEl) btnEl.textContent = '📍 Mein Standort';
-    var msg = 'Standort konnte nicht ermittelt werden.';
-    if (err.code === 1) msg = 'Standort-Berechtigung verweigert.';
-    else if (err.code === 2) msg = 'Standort nicht verfügbar.';
-    else if (err.code === 3) msg = 'Standort-Abfrage zeitlich überschritten.';
-    alert(msg);
-  }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
+// Setzt einen blauen Standort-Marker auf die Karte (ohne Geolocation-Abfrage,
+// fuer den Fall dass die Koordinaten schon bekannt sind).
+function setzeListenKarteStandortMarker(map, lat, lng) {
+  if (!window.L) return;
+  var standortIcon = L.divIcon({
+    className: 'eigener-standort-icon',
+    html: '<div style="width:18px;height:18px;background:#2196f3;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+  L.marker([lat, lng], { icon: standortIcon })
+    .addTo(map)
+    .bindPopup('<strong>📍 Mein Standort</strong>');
 }
