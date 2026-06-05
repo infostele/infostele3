@@ -4444,6 +4444,65 @@ if (document.readyState === 'loading') {
 }
 
 
+// ════════════════════════════════════════════════════════════════
+// RADFAHREN: DATAHUB-DATEN → ALT-SCHEMA
+// ════════════════════════════════════════════════════════════════
+// Verteilt window.DATA_RAD_ALLE (Output von build_radtouren.py) auf die
+// fuenf existierenden Buckets (Rundradwege, Streckenradwege, Gravelbike,
+// Mountainbike, Rennrad). Verteilungslogik nach DataHub-"kategorie"-Feld
+// plus istRundweg fuer generische Radtouren.
+//
+// Die Item-Konvertierung selbst (DataHub-Felder -> OLD-Schema) ist
+// identisch zu Wandern -- _wandern_konvertiereEine() ist generisch und
+// funktioniert fuer beide Tour-Typen.
+
+function _rad_konvertiereAlle() {
+  var alle = window.DATA_RAD_ALLE || [];
+  if (!alle.length) return;
+
+  var rund    = [];
+  var strecke = [];
+  var gravel  = [];
+  var mtb     = [];
+  var rennrad = [];
+
+  alle.forEach(function(t) {
+    var k = _wandern_konvertiereEine(t);  // generischer Tour-Mapper
+    var kat = t.kategorie || '';
+    if      (kat === 'Mountainbike')   mtb.push(k);
+    else if (kat === 'Rennrad')        rennrad.push(k);
+    else if (kat === 'Gravelbike')     gravel.push(k);
+    else if (kat === 'Streckenradweg') strecke.push(k);
+    else if (t.istRundweg)             rund.push(k);
+    else                                strecke.push(k);
+  });
+
+  // Alphabetisch sortieren
+  [rund, strecke, gravel, mtb, rennrad].forEach(function(arr) {
+    arr.sort(function(a, b) { return a.title.localeCompare(b.title, 'de'); });
+  });
+
+  window.DATA_RADFAHREN_RUNDRADWEGE     = rund;
+  window.DATA_RADFAHREN_STRECKENRADWEGE = strecke;
+  window.DATA_RADFAHREN_GRAVELBIKE      = gravel;
+  window.DATA_RADFAHREN_MOUNTAINBIKE    = mtb;
+  window.DATA_RADFAHREN_RENNRAD         = rennrad;
+
+  console.log('[Rad DATAHUB→alt-Schema] ' + alle.length + ' Touren verteilt: '
+    + 'rund=' + rund.length
+    + ', strecke=' + strecke.length
+    + ', gravel=' + gravel.length
+    + ', mtb=' + mtb.length
+    + ', rennrad=' + rennrad.length);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _rad_konvertiereAlle);
+} else {
+  _rad_konvertiereAlle();
+}
+
+
 // ─── FOTO-TOGGLE (fuer den "Foto"-Button auf Wandertour-Detailseiten) ─────
 // Schaltet die Foto-Sektion (Bild + Bildnachweis) ein/aus und passt den
 // Button-Text entsprechend an. Beim Aufklappen wird so gescrollt, dass das
@@ -4470,7 +4529,7 @@ function toggleTourFoto(elemId, btn) {
     try {
       var sticky = document.querySelector('.sticky-detail');
       var headerH = sticky ? Math.round(sticky.getBoundingClientRect().height) : 0;
-      var marge = 12;
+      var marge = 24;  // ~3 mm Atem-Marge ueber dem Foto
 
       // Primaerweg: scroll-margin-top setzen, dann scrollIntoView. Der Browser
       // berechnet die Zielposition selbst und beruecksichtigt dabei
