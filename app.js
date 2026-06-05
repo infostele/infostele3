@@ -466,9 +466,9 @@ var KATEGORIEN = {
     subs:[
       {slug:'wandern',         label:'Wandern',         meta:'5 Wanderregionen', icon:ICONS.wandern},
       {slug:'radfahren',       label:'Radfahren',       meta:'5 Routenarten',     icon:ICONS.fahrrad},
-      {slug:'ausflugsziele',   label:'Ausflugsziele',   meta:'POIs in der Region',icon:ICONS.markierung},
-      {slug:'badeseen',        label:'Badeseen',        meta:'Naturbadestellen',  icon:ICONS.welle},
-      {slug:'unterkuenfte',    label:'Unterkünfte',     meta:'Hotels & Pensionen',icon:ICONS.haus}
+      {slug:'ausflugsziele',   label:'Ausflugsziele',   meta:'Sehenswertes, Badeseen & mehr', icon:ICONS.markierung},
+      {slug:'gastronomie',     label:'Gastronomie',     meta:'Restaurants, Cafés & mehr',     icon:ICONS.markt},
+      {slug:'unterkuenfte',    label:'Unterkünfte',     meta:'Hotels, Pensionen, Ferienwohnungen', icon:ICONS.haus}
     ]
   },
   'regional': {
@@ -557,57 +557,90 @@ var LISTEN = {
       {label:'Rundradwege',     meta:'Tagestouren',          sub:'rundradwege',     icon:ICONS.rundrad},
       {label:'Streckenradwege', meta:'Mehrtagestouren',       sub:'streckenradwege', icon:ICONS.streckenrad},
       {label:'Gravelbike',      meta:'Schotterstrecken',     sub:'gravelbike',      icon:ICONS.gravelbike},
-      {label:'Mountainbike',    meta:'Trails & Singletracks', sub:'mountainbike',   icon:ICONS.mountainbike},
-      {label:'Rennrad',         meta:'Asphaltierte Strecken', sub:'rennrad',        icon:ICONS.rennrad},
-      {label:'E-Bike Infrastruktur', meta:'Verleih, Werkstätten, Akku-Wechselstationen', sub:'ebike-infrastruktur', icon:ICONS.fahrrad}
+      {label:'Mountainbike',    meta:'Trails & Singletracks', sub:'mountainbike',   icon:ICONS.mountainbike}
     ]
   },
-  'tourismus-radfahren-ebike-infrastruktur': {
-    datenName:'DATA_EBIKE_INFRASTRUKTUR',
-    titel:'E-Bike Infrastruktur',
-    breadcrumb:'Radfahren › <strong>E-Bike Infrastruktur</strong>',
-    zurueck:'liste/tourismus-radfahren',
-    untertitel:'Verleih, Werkstätten, Akku-Wechselstationen und Shops.',
-    detailKey:'ebike',
-    renderTyp:'gefiltert',
-    filterLabel:'Typ',
-    filterTypen:[
-      {key:'alle',     label:'Alle'},
-      {key:'akku',     label:'Akku-Wechselstation'},
-      {key:'verleih',  label:'Verleih'},
-      {key:'reparatur',label:'Reparatur'},
-      {key:'shop',     label:'Shop'},
-      {key:'sonstige', label:'Sonstige'}
-    ],
-    typErkenner: function(item) {
-      var t = (item.type || '').toLowerCase();
-      if (t.indexOf('akku') >= 0 || t.indexOf('ladestation') >= 0 || t.indexOf('wechselstation') >= 0 || t.indexOf('pedelec-stationen') >= 0) return 'akku';
-      if (t.indexOf('verleih') >= 0) return 'verleih';
-      if (t.indexOf('reparatur') >= 0 || t.indexOf('werkstatt') >= 0) return 'reparatur';
-      if (t.indexOf('shop') >= 0 || t.indexOf('geschäft') >= 0 || t.indexOf('geschaeft') >= 0) return 'shop';
-      return 'sonstige';
-    }
-  },
   'tourismus-ausflugsziele': {
+    datenName:'DATA_AUSFLUGSZIELE_DH',
     titel:'Ausflugsziele',
     breadcrumb:'Tourismus &amp; Freizeit › <strong>Ausflugsziele</strong>',
     zurueck:'kategorie/tourismus',
-    untertitel:'Sehenswertes in der Region (Live-Daten von westerwald.info).',
-    renderTyp:'iframe',
-    iframeUrl:'https://www.westerwald.info/tosc5/infrastruktur?limINFOSYSTEMSUBTOPICS=a1716a20-0da0-4cd6-b473-febf29b39eea,f7fe9672-2fdc-4105-bbc7-40bb170afef3#/pois',
-    iframeTyp:'webseite',
-    mobilIframe:true
+    untertitel:'Sehenswürdigkeiten, Badeseen, Natur & Kultur — Live-Daten vom DataHub RLP.',
+    detailKey:'badesee',
+    renderTyp:'gefiltert',
+    filterLabel:'Art',
+    filterTypen:[
+      {key:'alle',         label:'Alle'},
+      {key:'kultur',       label:'Kultur & Historie'},
+      {key:'natur',        label:'Natur'},
+      {key:'aktiv',        label:'Aktiv'},
+      {key:'badesee',      label:'Badesee'},
+      {key:'sonstige',     label:'Sonstige'}
+    ],
+    typErkenner: function(item) {
+      var cats = (item.categories || []).join(' | ').toLowerCase();
+      var name = (item.name || '').toLowerCase();
+      // Badesee zuerst pruefen (auch wenn keine Kategorie matched, aber im Namen)
+      if (/(badesee|talsperre|weiher|wiesensee|krombach|see\b|seeufer)/.test(cats + ' ' + name)) return 'badesee';
+      if (/(kultur|kirche|kloster|museum|sehensw|denkmal|historisch|geistlich|kunst|bauten|stift|burg|schloss)/.test(cats)) return 'kultur';
+      if (/(natur|aussicht|geolog|landschaft|wald|park|tier|baum|garten)/.test(cats)) return 'natur';
+      if (/(sport|wandern|fahrrad|radfahren|outdoor|aktiv|freizeit)/.test(cats)) return 'aktiv';
+      return 'sonstige';
+    }
   },
-  'tourismus-badeseen':      {datenName:'DATA_BADESEEN_NEU',  titel:'Badeseen',     breadcrumb:'Tourismus &amp; Freizeit › <strong>Badeseen</strong>',     zurueck:'kategorie/tourismus', untertitel:'Erfrischung und Naturerlebnis.', detailKey:'badesee'},
   'tourismus-unterkuenfte': {
+    datenName:'DATA_UNTERKUENFTE_DH',
     titel:'Unterkünfte',
     breadcrumb:'Tourismus &amp; Freizeit › <strong>Unterkünfte</strong>',
     zurueck:'kategorie/tourismus',
-    untertitel:'Hotels, Pensionen, Ferienwohnungen, Camping (Live-Daten von westerwald.info).',
-    renderTyp:'iframe',
-    iframeUrl:'https://www.westerwald.info/tosc5/unterkuenfte/#/unterkuenfte',
-    iframeTyp:'webseite',
-    mobilIframe:true
+    untertitel:'Hotels, Pensionen, Ferienwohnungen, Ferienhäuser — Live-Daten vom DataHub RLP.',
+    detailKey:'unterkunft',
+    renderTyp:'gefiltert',
+    filterLabel:'Art',
+    filterTypen:[
+      {key:'alle',          label:'Alle'},
+      {key:'hotel',         label:'Hotel & Pension'},
+      {key:'fewo',          label:'Ferienwohnung'},
+      {key:'ferienhaus',    label:'Ferienhaus'},
+      {key:'camping',       label:'Camping & Mobilheim'},
+      {key:'sonstige',      label:'Sonstige'}
+    ],
+    typErkenner: function(item) {
+      var cats = (item.categories || []).join(' | ').toLowerCase();
+      if (/(hotel|pension|gasthof|gasthaus|gasthaeuser)/.test(cats)) return 'hotel';
+      if (/(ferienwohnung|fewo|appartement|apartment)/.test(cats)) return 'fewo';
+      if (/(ferienhaus|haus)/.test(cats)) return 'ferienhaus';
+      if (/(camping|campingplatz|mobilheim|wohnmobil)/.test(cats)) return 'camping';
+      return 'sonstige';
+    }
+  },
+  'tourismus-gastronomie': {
+    datenName:'DATA_GASTRONOMIE_DH',
+    titel:'Gastronomie',
+    breadcrumb:'Tourismus &amp; Freizeit › <strong>Gastronomie</strong>',
+    zurueck:'kategorie/tourismus',
+    untertitel:'Restaurants, Cafés, Imbisse, Biergärten — Live-Daten vom DataHub RLP.',
+    detailKey:'gastronomie',
+    renderTyp:'gefiltert',
+    filterLabel:'Art',
+    filterTypen:[
+      {key:'alle',       label:'Alle'},
+      {key:'restaurant', label:'Restaurant'},
+      {key:'cafe',       label:'Café'},
+      {key:'imbiss',     label:'Imbiss'},
+      {key:'kneipe',     label:'Bar/Kneipe'},
+      {key:'baeckerei',  label:'Bäckerei'},
+      {key:'sonstige',   label:'Sonstige'}
+    ],
+    typErkenner: function(item) {
+      var cats = (item.categories || []).join(' | ').toLowerCase();
+      if (/(bäckerei|baeckerei|konditorei)/.test(cats)) return 'baeckerei';
+      if (/(café|cafe|kaffeehaus)/.test(cats)) return 'cafe';
+      if (/(imbiss|snackbar|snack-bar|sb\/selbstbedienung|pizzeria|döner)/.test(cats)) return 'imbiss';
+      if (/(bar|kneipe|biergarten|pub|lounge|brauerei|brennerei)/.test(cats)) return 'kneipe';
+      if (/(restaurant|gasthof|gasthaus|gaststätte|gaststaette|ausflugslokal|wandereinkehr|bistro|hotelrestaurant)/.test(cats)) return 'restaurant';
+      return 'sonstige';
+    }
   },
   'veranstaltungen-alle': {datenName:'DATA_VERANSTALTUNGEN_ALLE', titel:'Veranstaltungen', breadcrumb:'<strong>Veranstaltungen</strong>', zurueck:'home', untertitel:'Alle Termine in der Region.', detailKey:'event', renderTyp:'termine'},
 
@@ -686,13 +719,12 @@ var WANDER_DATEN = {
   'waeller-touren':  {name:'DATA_WANDERN_WAELLER_TOUREN',  titel:'Wäller Touren',   breadcrumb:'Wandern › <strong>Wäller Touren</strong>',   untertitel:'Tageswanderungen mit Charme.'},
   'kleine-waeller':  {name:'DATA_WANDERN_KLEINE_WAELLER',  titel:'Kleine Wäller',   breadcrumb:'Wandern › <strong>Kleine Wäller</strong>',   untertitel:'Kurze Rundtouren für zwischendurch.'},
   'einzeltouren':    {name:'DATA_WANDERN_EINZELTOUREN',    titel:'Einzeltouren',    breadcrumb:'Wandern › <strong>Einzeltouren</strong>',    untertitel:'Weitere Touren im Westerwald.'}
-};;
+};
 var RAD_DATEN = {
   'rundradwege':     {name:'DATA_RADFAHREN_RUNDRADWEGE',     titel:'Rundradwege',     breadcrumb:'Radfahren › <strong>Rundradwege</strong>',     untertitel:'Tagestouren als Rundkurs.'},
   'streckenradwege': {name:'DATA_RADFAHREN_STRECKENRADWEGE', titel:'Streckenradwege', breadcrumb:'Radfahren › <strong>Streckenradwege</strong>', untertitel:'Strecken durch die Region.'},
   'gravelbike':      {name:'DATA_RADFAHREN_GRAVELBIKE',      titel:'Gravelbike',      breadcrumb:'Radfahren › <strong>Gravelbike</strong>',      untertitel:'Routen abseits der Straße.'},
-  'mountainbike':    {name:'DATA_RADFAHREN_MOUNTAINBIKE',    titel:'Mountainbike',    breadcrumb:'Radfahren › <strong>Mountainbike</strong>',    untertitel:'Singletrails und Trails.'},
-  'rennrad':         {name:'DATA_RADFAHREN_RENNRAD',         titel:'Rennrad',         breadcrumb:'Radfahren › <strong>Rennrad</strong>',         untertitel:'Anspruchsvolle Asphaltrouten.'}
+  'mountainbike':    {name:'DATA_RADFAHREN_MOUNTAINBIKE',    titel:'Mountainbike',    breadcrumb:'Radfahren › <strong>Mountainbike</strong>',    untertitel:'Singletrails und Trails.'}
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -1518,6 +1550,7 @@ function renderDetail(ziel, typ, schluessel) {
   else if (typ === 'ausfl')                    renderAusflDetail(ziel, item, info, zurueck);
   else if (typ === 'badesee')                  renderBadeseeDetail(ziel, item, info, zurueck);
   else if (typ === 'unterkunft')               renderUnterkunftDetail(ziel, item, info, zurueck);
+  else if (typ === 'gastronomie')              renderUnterkunftDetail(ziel, item, info, zurueck);
   else if (typ === 'museum')                   renderMuseumDetail(ziel, item, info, zurueck);
   else if (typ === 'literatur')                renderAusflDetail(ziel, item, info, zurueck);
   else if (typ === 'event')                    renderTerminDetail(ziel, item, info, zurueck);
@@ -2108,17 +2141,48 @@ function renderAusflDetail(ziel, item, info, zurueck) {
 
 // === Badesee ===
 function renderBadeseeDetail(ziel, item, info, zurueck) {
+  // Eindeutige IDs fuer die Foto-Sektion (Toggle ueber den Foto-Button)
+  var fotoSecId = 'foto-sec-' + Math.random().toString(36).slice(2);
+  var hatBild = !!item._bild;
+
   var html = navBar(zurueck, info.breadcrumb)
     + intro(info.titel, '')
     + '<div class="detail-section">'
     + '<h2 class="detail-titel">' + escapeHtml(item.name) + '</h2>';
   var tagRow = '<div class="diff-gpx-row">';
-  if (item.ort) tagRow += '<span class="diff-pill diff-leicht-bg">📍 ' + escapeHtml(item.ort) + '</span>';
+  // Kategorie-Pillen (aus categories[] vom DataHub-POI) — zeigen die Filterzuordnung
+  if (item.categories && item.categories.length) {
+    item.categories.slice(0, 4).forEach(function(c) {
+      tagRow += '<span class="diff-pill">' + escapeHtml(c) + '</span>';
+    });
+  } else if (item.ort) {
+    tagRow += '<span class="diff-pill diff-leicht-bg">📍 ' + escapeHtml(item.ort) + '</span>';
+  }
   if (hatVerortbareInfo(item) && info.karteUrl) {
     tagRow += '<a class="btn-action outline" href="' + info.karteUrl + '">🗺️ Karte</a>';
   }
+  if (hatBild) {
+    tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="toggleTourFoto(\'' + fotoSecId + '\', this)">📷 Foto</button>';
+  }
   tagRow += '</div>';
   html += tagRow;
+
+  // FOTO-SEKTION
+  if (hatBild) {
+    var creditHtml = '';
+    if (item._bildUrheber) {
+      creditHtml = 'Foto: ' + escapeHtml(item._bildUrheber);
+      if (item._bildLizenz) {
+        creditHtml += ' (<a href="' + escapeHtml(item._bildLizenz) + '" target="_blank" rel="noopener">Lizenz</a>)';
+      }
+    }
+    html += '<div id="' + fotoSecId + '" class="tour-foto-sektion" style="display:none;margin:12px 0;line-height:0;">'
+      +   '<img loading="lazy" src="' + escapeHtml(item._bild) + '" alt="' + escapeHtml(item.name) + '" '
+      +        'style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;max-height:none !important;border-radius:8px;">'
+      +   (creditHtml ? '<div class="tour-foto-credit" style="font-size:0.85em;line-height:1.4;color:#666;margin-top:6px;text-align:left;">' + creditHtml + '</div>' : '')
+      + '</div>';
+  }
+
   if (item.kurz) html += dropdown('Kurzinfo', txt(item.kurz), true);
   if (item.detail) html += dropdown('Beschreibung', txt(item.detail));
 
@@ -2147,6 +2211,10 @@ function renderBadeseeDetail(ziel, item, info, zurueck) {
 
 // === Unterkunft ===
 function renderUnterkunftDetail(ziel, item, info, zurueck) {
+  // Eindeutige IDs fuer die Foto-Sektion (Toggle ueber den Foto-Button)
+  var fotoSecId = 'foto-sec-' + Math.random().toString(36).slice(2);
+  var hatBild = !!item._bild;
+
   var html = navBar(zurueck, info.breadcrumb)
     + intro(info.titel, '')
     + '<div class="detail-section">'
@@ -2154,15 +2222,36 @@ function renderUnterkunftDetail(ziel, item, info, zurueck) {
   var tagRow = '<div class="diff-gpx-row">';
   var hatTags = false;
   if (item.categories && item.categories.length) {
-    item.categories.forEach(function(c) { tagRow += '<span class="diff-pill">' + escapeHtml(c) + '</span>'; });
+    item.categories.slice(0, 4).forEach(function(c) { tagRow += '<span class="diff-pill">' + escapeHtml(c) + '</span>'; });
     hatTags = true;
   }
   if (hatVerortbareInfo(item) && info.karteUrl) {
     tagRow += '<a class="btn-action outline" href="' + info.karteUrl + '">🗺️ Karte</a>';
     hatTags = true;
   }
+  if (hatBild) {
+    tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="toggleTourFoto(\'' + fotoSecId + '\', this)">📷 Foto</button>';
+    hatTags = true;
+  }
   tagRow += '</div>';
   if (hatTags) html += tagRow;
+
+  // FOTO-SEKTION
+  if (hatBild) {
+    var creditHtml = '';
+    if (item._bildUrheber) {
+      creditHtml = 'Foto: ' + escapeHtml(item._bildUrheber);
+      if (item._bildLizenz) {
+        creditHtml += ' (<a href="' + escapeHtml(item._bildLizenz) + '" target="_blank" rel="noopener">Lizenz</a>)';
+      }
+    }
+    html += '<div id="' + fotoSecId + '" class="tour-foto-sektion" style="display:none;margin:12px 0;line-height:0;">'
+      +   '<img loading="lazy" src="' + escapeHtml(item._bild) + '" alt="' + escapeHtml(item.name) + '" '
+      +        'style="display:block !important;width:100% !important;max-width:100% !important;height:auto !important;max-height:none !important;border-radius:8px;">'
+      +   (creditHtml ? '<div class="tour-foto-credit" style="font-size:0.85em;line-height:1.4;color:#666;margin-top:6px;text-align:left;">' + creditHtml + '</div>' : '')
+      + '</div>';
+  }
+
   if (item.description) html += dropdown('Beschreibung', txt(item.description), true);
   if (item.features && item.features.length) {
     var f = '<ul>';
@@ -2170,15 +2259,21 @@ function renderUnterkunftDetail(ziel, item, info, zurueck) {
     f += '</ul>';
     html += dropdown('Ausstattung', f);
   }
-  if (item.contact && (item.contact.phone || item.contact.email || item.contact.url)) {
-    var k = '';
-    if (item.contact.phone) k += '<strong>Telefon:</strong> ' + escapeHtml(item.contact.phone) + '<br>';
-    if (item.contact.email) k += '<strong>E-Mail:</strong> <a href="mailto:' + item.contact.email + '">' + item.contact.email + '</a><br>';
-    if (item.contact.url)   k += '<strong>Web:</strong> <a href="' + item.contact.url + '" target="_blank">' + item.contact.url + '</a>';
-    html += dropdown('Kontakt', '<p>' + k + '</p>');
+  // Kontakt: Adresse + Telefon + E-Mail + Web
+  var kontakt = '';
+  var adresse = '';
+  if (item.strasse) adresse += escapeHtml(item.strasse) + '<br>';
+  if (item.plz || item.ort) {
+    adresse += (item.plz ? escapeHtml(item.plz) + ' ' : '') + (item.ort ? escapeHtml(item.ort) : '') + '<br>';
   }
-  if (!item.description && (!item.features || !item.features.length)) {
-    html += '<div class="hinweis">Detail-Daten zu dieser Unterkunft werden noch befüllt.</div>';
+  if (adresse) kontakt += '<p><strong>Adresse:</strong><br>' + adresse + '</p>';
+  if (item.contact && item.contact.phone) kontakt += '<p><strong>Telefon:</strong> <a href="tel:' + escapeHtml(item.contact.phone.replace(/\s+/g,'')) + '">' + escapeHtml(item.contact.phone) + '</a></p>';
+  if (item.contact && item.contact.email) kontakt += '<p><strong>E-Mail:</strong> <a href="mailto:' + escapeHtml(item.contact.email) + '">' + escapeHtml(item.contact.email) + '</a></p>';
+  if (item.contact && item.contact.url)   kontakt += '<p><strong>Web:</strong> <a href="' + escapeHtml(item.contact.url) + '" target="_blank" rel="noopener">' + escapeHtml(item.contact.url.replace(/^https?:\/\//,'').replace(/\/$/,'')) + '</a></p>';
+  if (kontakt) html += dropdown('Kontakt', kontakt);
+
+  if (!item.description && (!item.features || !item.features.length) && !kontakt) {
+    html += '<div class="hinweis">Detail-Daten zu diesem Eintrag werden noch befüllt.</div>';
   }
   html += '</div><div class="spacer"></div>';
   ziel.innerHTML = html;
@@ -4464,21 +4559,20 @@ function _rad_konvertiereAlle() {
   var strecke = [];
   var gravel  = [];
   var mtb     = [];
-  var rennrad = [];
 
   alle.forEach(function(t) {
     var k = _wandern_konvertiereEine(t);  // generischer Tour-Mapper
     var kat = t.kategorie || '';
     if      (kat === 'Mountainbike')   mtb.push(k);
-    else if (kat === 'Rennrad')        rennrad.push(k);
     else if (kat === 'Gravelbike')     gravel.push(k);
     else if (kat === 'Streckenradweg') strecke.push(k);
     else if (t.istRundweg)             rund.push(k);
     else                                strecke.push(k);
+    // 'Rennrad' wird wie generische Radtour behandelt -> Bucket nach istRundweg
   });
 
   // Alphabetisch sortieren
-  [rund, strecke, gravel, mtb, rennrad].forEach(function(arr) {
+  [rund, strecke, gravel, mtb].forEach(function(arr) {
     arr.sort(function(a, b) { return a.title.localeCompare(b.title, 'de'); });
   });
 
@@ -4486,14 +4580,12 @@ function _rad_konvertiereAlle() {
   window.DATA_RADFAHREN_STRECKENRADWEGE = strecke;
   window.DATA_RADFAHREN_GRAVELBIKE      = gravel;
   window.DATA_RADFAHREN_MOUNTAINBIKE    = mtb;
-  window.DATA_RADFAHREN_RENNRAD         = rennrad;
 
   console.log('[Rad DATAHUB→alt-Schema] ' + alle.length + ' Touren verteilt: '
     + 'rund=' + rund.length
     + ', strecke=' + strecke.length
     + ', gravel=' + gravel.length
-    + ', mtb=' + mtb.length
-    + ', rennrad=' + rennrad.length);
+    + ', mtb=' + mtb.length);
 }
 
 if (document.readyState === 'loading') {
@@ -4529,7 +4621,7 @@ function toggleTourFoto(elemId, btn) {
     try {
       var sticky = document.querySelector('.sticky-detail');
       var headerH = sticky ? Math.round(sticky.getBoundingClientRect().height) : 0;
-      var marge = 24;  // ~3 mm Atem-Marge ueber dem Foto
+      var marge = 36;  // ~3 mm Atem-Marge ueber dem Foto (war 24, war zu wenig)
 
       // Primaerweg: scroll-margin-top setzen, dann scrollIntoView. Der Browser
       // berechnet die Zielposition selbst und beruecksichtigt dabei
@@ -4569,4 +4661,112 @@ function toggleTourFoto(elemId, btn) {
   } else {
     setTimeout(scrolleFotoSichtbar, 50);
   }
+}
+
+
+// ════════════════════════════════════════════════════════════════════════
+// PHASE 4: DATAHUB POI / UNTERKUNFT / GASTRONOMIE -> ALTES APP-SCHEMA
+// ════════════════════════════════════════════════════════════════════════
+//
+// Diese Brücken-Funktionen konvertieren die vom DataHub gelieferten
+// Rohdaten (window.DATA_POIS_ALLE / DATA_UNTERKUENFTE_ALLE / DATA_GASTRONOMIE_ALLE)
+// in das Format, das die bestehenden Render-Funktionen erwarten:
+//   - renderBadeseeDetail erwartet: name, ort, lat, lng, kurz, detail, strasse,
+//     plz, tel, mail, links, plus _bild/_bildUrheber/_bildLizenz fuer Foto-Button
+//   - renderUnterkunftDetail erwartet: name, categories, lat, lng, description,
+//     features, contact:{phone,email,url}, plus _bild/_bildUrheber/_bildLizenz
+// ════════════════════════════════════════════════════════════════════════
+
+function _pois_konvertiereEine(p) {
+  // POI aus DataHub -> Schema fuer renderBadeseeDetail
+  // Wir uebernehmen die Felder fast 1:1, ergaenzen nur die Foto-Button-Felder
+  return {
+    id:          p.id,
+    slug:        p.slug,
+    name:        p.name,
+    ort:         p.ort || '',
+    lat:         p.lat,
+    lng:         p.lng,
+    kurz:        p.kurz || '',
+    detail:      p.detail || '',
+    strasse:     p.strasse || '',
+    plz:         p.plz || '',
+    tel:         p.tel || '',
+    mail:        p.mail || '',
+    links:       p.links || [],
+    categories:  p.categories || [],
+    features:    p.features || [],
+    // Foto-Button-Felder (analog Wandertouren)
+    _bild:        p.bild || '',
+    _thumb:       p.thumb || '',
+    _bildLizenz:  p.bildLizenz || '',
+    _bildUrheber: p.bildUrheber || ''
+  };
+}
+
+function _pois_konvertiereAlle() {
+  var alle = window.DATA_POIS_ALLE || [];
+  if (!alle.length) return;
+  var konv = alle.map(_pois_konvertiereEine);
+  konv.sort(function(a, b) { return a.name.localeCompare(b.name, 'de'); });
+  window.DATA_AUSFLUGSZIELE_DH = konv;
+  console.log('[POIs DATAHUB→alt-Schema] ' + konv.length
+    + ' POIs (incl. Badeseen) in DATA_AUSFLUGSZIELE_DH eingespielt.');
+}
+
+function _unterkuenfte_konvertiereEine(u) {
+  // Unterkunft aus DataHub -> Schema fuer renderUnterkunftDetail
+  // Schema ist schon nahezu identisch, wir muessen nur Foto-Felder umbenennen
+  return {
+    id:          u.id,
+    slug:        u.slug,
+    name:        u.name,
+    categories:  u.categories || [],
+    features:    u.features || [],
+    description: u.description || '',
+    strasse:     u.strasse || '',
+    plz:         u.plz || '',
+    ort:         u.ort || '',
+    lat:         u.lat,
+    lng:         u.lng,
+    contact:     u.contact || { phone: '', email: '', url: '' },
+    _bild:        u.bild || '',
+    _thumb:       u.thumb || '',
+    _bildLizenz:  u.bildLizenz || '',
+    _bildUrheber: u.bildUrheber || ''
+  };
+}
+
+function _unterkuenfte_konvertiereAlle() {
+  var alle = window.DATA_UNTERKUENFTE_ALLE || [];
+  if (!alle.length) return;
+  var konv = alle.map(_unterkuenfte_konvertiereEine);
+  konv.sort(function(a, b) { return a.name.localeCompare(b.name, 'de'); });
+  window.DATA_UNTERKUENFTE_DH = konv;
+  console.log('[Unterkuenfte DATAHUB→alt-Schema] ' + konv.length
+    + ' Unterkuenfte in DATA_UNTERKUENFTE_DH eingespielt.');
+}
+
+function _gastronomie_konvertiereAlle() {
+  // Gastronomie nutzt dasselbe Schema wie Unterkuenfte
+  var alle = window.DATA_GASTRONOMIE_ALLE || [];
+  if (!alle.length) return;
+  var konv = alle.map(_unterkuenfte_konvertiereEine);
+  konv.sort(function(a, b) { return a.name.localeCompare(b.name, 'de'); });
+  window.DATA_GASTRONOMIE_DH = konv;
+  console.log('[Gastronomie DATAHUB→alt-Schema] ' + konv.length
+    + ' Gastrobetriebe in DATA_GASTRONOMIE_DH eingespielt.');
+}
+
+// Beim DOMContentLoaded ausfuehren — wie bei Wandern/Rad
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    _pois_konvertiereAlle();
+    _unterkuenfte_konvertiereAlle();
+    _gastronomie_konvertiereAlle();
+  });
+} else {
+  _pois_konvertiereAlle();
+  _unterkuenfte_konvertiereAlle();
+  _gastronomie_konvertiereAlle();
 }
