@@ -395,7 +395,13 @@ function router() {
   else if (teile[0] === 'liste' && teile[1])    renderListe(ziel, teile[1]);
   else if (teile[0] === 'detail' && teile[1] && teile[2]) renderDetail(ziel, teile[1], teile[2]);
   else if (teile[0] === 'karte'  && teile[1] && teile[2]) renderKarte(ziel, teile[1], teile[2]);
-  else if (teile[0] === 'karte-liste' && teile[1])        renderListenKarte(ziel, teile[1]);
+  else if (teile[0] === 'karte-liste' && teile[1]) {
+    if (teile[1] === 'veranstaltungen-alle') {
+      renderVeranstaltungenKarte(ziel);
+    } else {
+      renderListenKarte(ziel, teile[1]);
+    }
+  }
   else if (teile[0] === 'detail-karte' && teile[1] && teile[2]) {
     // Wie detail/<typ>/<key>, aber Zurueck-Button fuehrt auf die Karte (nicht Liste)
     var sk = teile[2];
@@ -576,6 +582,7 @@ var LISTEN = {
     untertitel:'Sehenswürdigkeiten, Badeseen, Natur & Kultur — Live-Daten vom DataHub RLP.',
     detailKey:'badesee',
     renderTyp:'gefiltert',
+    karteButtonLabel:'🗺️ Karte mit allen Ausflugszielen öffnen',
     filterLabel:'Art',
     filterTypen:[
       {key:'alle',         label:'Alle'},
@@ -612,6 +619,7 @@ var LISTEN = {
     untertitel:'Hotels, Pensionen, Ferienwohnungen, Ferienhäuser — Live-Daten vom DataHub RLP.',
     detailKey:'unterkunft',
     renderTyp:'gefiltert',
+    karteButtonLabel:'🗺️ Karte mit allen Unterkünften öffnen',
     filterLabel:'Art',
     filterTypen:[
       {key:'alle',          label:'Alle'},
@@ -646,6 +654,7 @@ var LISTEN = {
     untertitel:'Restaurants, Cafés, Imbisse, Biergärten — Live-Daten vom DataHub RLP.',
     detailKey:'gastronomie',
     renderTyp:'gefiltert',
+    karteButtonLabel:'🗺️ Karte mit allen Gastronomiebetrieben öffnen',
     filterLabel:'Art',
     filterTypen:[
       {key:'alle',       label:'Alle'},
@@ -674,7 +683,7 @@ var LISTEN = {
       return 'sonstige';
     }
   },
-  'veranstaltungen-alle': {datenName:'DATA_VERANSTALTUNGEN_ALLE', titel:'Veranstaltungen', breadcrumb:'<strong>Veranstaltungen</strong>', zurueck:'home', untertitel:'Alle Termine in der Region.', detailKey:'event', renderTyp:'termine'},
+  'veranstaltungen-alle': {datenName:'DATA_VERANSTALTUNGEN_ALLE', titel:'Veranstaltungen', breadcrumb:'<strong>Veranstaltungen</strong>', zurueck:'home', untertitel:'Alle Termine in der Region.', detailKey:'event', renderTyp:'termine', karteButtonLabel:'🗺️ Karte mit allen Veranstaltungen öffnen'},
 
   // KUNST & KULTUR – entfällt (Museen-Inhalte wurden gestrichen)
 
@@ -745,18 +754,18 @@ var SUB_INTERNAL_ROUTES = {
 };
 
 var WANDER_DATEN = {
-  'westerwaldsteig': {name:'DATA_WANDERN_WESTERWALDSTEIG', titel:'WesterwaldSteig', breadcrumb:'Wandern › <strong>WesterwaldSteig</strong>', untertitel:'Etappen, Erlebnisschleifen und die Gesamtstrecke.'},
-  'druidensteig':    {name:'DATA_WANDERN_DRUIDENSTEIG',    titel:'Druidensteig',    breadcrumb:'Wandern › <strong>Druidensteig</strong>',    untertitel:'Auf den Spuren der Kelten.'},
-  'wiedweg':         {name:'DATA_WANDERN_WIEDWEG',         titel:'Wiedweg',         breadcrumb:'Wandern › <strong>Wiedweg</strong>',         untertitel:'Entlang der Wied.'},
-  'waeller-touren':  {name:'DATA_WANDERN_WAELLER_TOUREN',  titel:'Wäller Touren',   breadcrumb:'Wandern › <strong>Wäller Touren</strong>',   untertitel:'Tageswanderungen mit Charme.'},
-  'kleine-waeller':  {name:'DATA_WANDERN_KLEINE_WAELLER',  titel:'Kleine Wäller',   breadcrumb:'Wandern › <strong>Kleine Wäller</strong>',   untertitel:'Kurze Rundtouren für zwischendurch.'},
-  'einzeltouren':    {name:'DATA_WANDERN_EINZELTOUREN',    titel:'Einzeltouren',    breadcrumb:'Wandern › <strong>Einzeltouren</strong>',    untertitel:'Weitere Touren im Westerwald.'}
+  'westerwaldsteig': {name:'DATA_WANDERN_WESTERWALDSTEIG', titel:'WesterwaldSteig', breadcrumb:'Wandern › <strong>WesterwaldSteig</strong>', untertitel:'Etappen, Erlebnisschleifen und die Gesamtstrecke.', karteButtonLabel:'🗺️ Karte mit allen WesterwaldSteig-Etappen öffnen'},
+  'druidensteig':    {name:'DATA_WANDERN_DRUIDENSTEIG',    titel:'Druidensteig',    breadcrumb:'Wandern › <strong>Druidensteig</strong>',    untertitel:'Auf den Spuren der Kelten.', karteButtonLabel:'🗺️ Karte mit allen Druidensteig-Etappen öffnen'},
+  'wiedweg':         {name:'DATA_WANDERN_WIEDWEG',         titel:'Wiedweg',         breadcrumb:'Wandern › <strong>Wiedweg</strong>',         untertitel:'Entlang der Wied.', karteButtonLabel:'🗺️ Karte mit allen Wiedweg-Etappen öffnen'},
+  'waeller-touren':  {name:'DATA_WANDERN_WAELLER_TOUREN',  titel:'Wäller Touren',   breadcrumb:'Wandern › <strong>Wäller Touren</strong>',   untertitel:'Tageswanderungen mit Charme.', karteButtonLabel:'🗺️ Karte mit allen Wäller Touren öffnen'},
+  'kleine-waeller':  {name:'DATA_WANDERN_KLEINE_WAELLER',  titel:'Kleine Wäller',   breadcrumb:'Wandern › <strong>Kleine Wäller</strong>',   untertitel:'Kurze Rundtouren für zwischendurch.', karteButtonLabel:'🗺️ Karte mit allen Kleine-Wäller-Touren öffnen'},
+  'einzeltouren':    {name:'DATA_WANDERN_EINZELTOUREN',    titel:'Einzeltouren',    breadcrumb:'Wandern › <strong>Einzeltouren</strong>',    untertitel:'Weitere Touren im Westerwald.', karteButtonLabel:'🗺️ Karte mit allen Wandertouren öffnen'}
 };
 var RAD_DATEN = {
-  'rundradwege':     {name:'DATA_RADFAHREN_RUNDRADWEGE',     titel:'Rundradwege',     breadcrumb:'Radfahren › <strong>Rundradwege</strong>',     untertitel:'Tagestouren als Rundkurs.'},
-  'streckenradwege': {name:'DATA_RADFAHREN_STRECKENRADWEGE', titel:'Streckenradwege', breadcrumb:'Radfahren › <strong>Streckenradwege</strong>', untertitel:'Strecken durch die Region.'},
-  'gravelbike':      {name:'DATA_RADFAHREN_GRAVELBIKE',      titel:'Gravelbike',      breadcrumb:'Radfahren › <strong>Gravelbike</strong>',      untertitel:'Routen abseits der Straße.'},
-  'mountainbike':    {name:'DATA_RADFAHREN_MOUNTAINBIKE',    titel:'Mountainbike',    breadcrumb:'Radfahren › <strong>Mountainbike</strong>',    untertitel:'Singletrails und Trails.'}
+  'rundradwege':     {name:'DATA_RADFAHREN_RUNDRADWEGE',     titel:'Rundradwege',     breadcrumb:'Radfahren › <strong>Rundradwege</strong>',     untertitel:'Tagestouren als Rundkurs.', karteButtonLabel:'🗺️ Karte mit allen Rundradwegen öffnen'},
+  'streckenradwege': {name:'DATA_RADFAHREN_STRECKENRADWEGE', titel:'Streckenradwege', breadcrumb:'Radfahren › <strong>Streckenradwege</strong>', untertitel:'Strecken durch die Region.', karteButtonLabel:'🗺️ Karte mit allen Streckenradwegen öffnen'},
+  'gravelbike':      {name:'DATA_RADFAHREN_GRAVELBIKE',      titel:'Gravelbike',      breadcrumb:'Radfahren › <strong>Gravelbike</strong>',      untertitel:'Routen abseits der Straße.', karteButtonLabel:'🗺️ Karte mit allen Gravelbike-Touren öffnen'},
+  'mountainbike':    {name:'DATA_RADFAHREN_MOUNTAINBIKE',    titel:'Mountainbike',    breadcrumb:'Radfahren › <strong>Mountainbike</strong>',    untertitel:'Singletrails und Trails.', karteButtonLabel:'🗺️ Karte mit allen Mountainbike-Strecken öffnen'}
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -1069,7 +1078,9 @@ function renderEtappenListe(ziel, slug, info, zurueckSlug, detailTyp) {
       + '<div id="filter-leiste-wrapper">' + filterUI() + '</div>'
     + '</div>'
     + '<div class="listen-karte-btn-row">'
-      + '<a class="listen-karte-btn" href="#karte-liste/' + escapeHtml(slug) + '">🗺️ Karte mit allen Touren öffnen</a>'
+      + '<a class="listen-karte-btn" href="#karte-liste/' + escapeHtml(slug) + '">'
+      + escapeHtml(info.karteButtonLabel || '🗺️ Karte mit allen Touren öffnen')
+      + '</a>'
     + '</div>'
     + '<div id="filter-treffer" class="filter-treffer">' + trefferTxt + '</div>'
     + '<div class="liste" id="etappen-liste">' + baueListenInhalt(slug, info, detailTyp) + '</div>'
@@ -1477,6 +1488,11 @@ function renderTermine(ziel, slug, l) {
       + navBar(l.zurueck, l.breadcrumb)
       + intro(l.titel, l.untertitel)
       + '<div id="filter-leiste-wrapper">' + termineFilterUI() + '</div>'
+    + '</div>'
+    + '<div class="listen-karte-btn-row">'
+      + '<a class="listen-karte-btn" href="#karte-liste/' + escapeHtml(slug) + '">'
+      + escapeHtml(l.karteButtonLabel || '🗺️ Karte mit allen Veranstaltungen öffnen')
+      + '</a>'
     + '</div>'
     + '<div id="filter-treffer" class="filter-treffer"><strong>' + zukunft.length + '</strong> kommende Termine</div>'
     + '<div class="liste" id="termine-liste">' + baueTermineListe(slug, l) + '</div>'
@@ -2481,7 +2497,9 @@ function renderGefiltertListe(ziel, slug, l) {
       + '<div id="gefiltert-filter-wrap">' + gefiltertFilterUI(l) + '</div>'
     + '</div>'
     + '<div class="listen-karte-btn-row">'
-      + '<a class="listen-karte-btn" href="#karte-liste/' + escapeHtml(slug) + '">🗺️ Karte mit allen Einträgen öffnen</a>'
+      + '<a class="listen-karte-btn" href="#karte-liste/' + escapeHtml(slug) + '">'
+      + escapeHtml(l.karteButtonLabel || '🗺️ Karte mit allen Einträgen öffnen')
+      + '</a>'
     + '</div>'
     + '<div id="gefiltert-treffer" class="filter-treffer"><strong>' + liste.gefiltertCount + '</strong> von <strong>' + liste.gesamtCount + '</strong> Einträgen</div>'
     + '<div class="liste" id="gefiltert-liste">' + liste.html + '</div>'
@@ -5080,6 +5098,29 @@ function renderListenKarte(ziel, slug) {
 }
 
 
+// Zeichnet die drei Westerwald-Landkreise (AK, NR, WW) als hellgrüne Flächen
+// mit dunklerer Outline auf die uebergebene Leaflet-Karte. Die Daten liegen
+// in window.LANDKREISE_WESTERWALD (geladen aus landkreise-westerwald.js).
+// Falls die Daten fehlen, geschieht nichts (kein Fehler).
+function zeichneLandkreisGrenzen(map) {
+  if (!window.L || !window.LANDKREISE_WESTERWALD) return;
+  try {
+    L.geoJSON(window.LANDKREISE_WESTERWALD, {
+      style: {
+        color:       '#1d6b3e',    // dunkelgruene Outline
+        weight:      2,
+        opacity:     0.85,
+        fillColor:   '#7ec887',    // hellgruene Fuellung
+        fillOpacity: 0.15
+      },
+      interactive: false   // Klicks gehen durch auf die Marker
+    }).addTo(map);
+  } catch (e) {
+    console.warn('[Landkreis-Grenzen] konnten nicht gezeichnet werden:', e);
+  }
+}
+
+
 function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
   if (!window.L) return;
   var map = L.map(mapId);
@@ -5088,15 +5129,34 @@ function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
     maxZoom: 19
   }).addTo(map);
 
+  // Verwaltungsgrenzen AK/NR/WW als hellgruene Flaeche einzeichnen
+  zeichneLandkreisGrenzen(map);
+
   var markerGroup = L.layerGroup().addTo(map);
 
   function refreshMarker() {
     markerGroup.clearLayers();
-    // Aktivierte Filter aus dem State holen (single source of truth)
     var aktivTyp = state.typ;
     var aktivBez = state.bezirk;
-    var typFilterAktiv = Object.keys(aktivTyp).length > 0 && (info.filterTypen && info.filterTypen.length);
-    var bezFilterAktiv = Object.keys(aktivBez).length > 0 && (info.filterBezirke && info.filterBezirke.length);
+    var hatTypOpts = (info.filterTypen && info.filterTypen.length);
+    var hatBezOpts = (info.filterBezirke && info.filterBezirke.length);
+    var typFilterAktiv = Object.keys(aktivTyp).length > 0 && hatTypOpts;
+    var bezFilterAktiv = Object.keys(aktivBez).length > 0 && hatBezOpts;
+
+    var zaehlEl = document.getElementById(mapId + '-zaehler');
+
+    // NEUE LOGIK: Wenn KEIN Filter aktiviert ist, keine Marker zeigen.
+    // Erst wenn der Nutzer mindestens eine Checkbox aktiviert, werden Treffer angezeigt.
+    if (!typFilterAktiv && !bezFilterAktiv) {
+      if (zaehlEl) zaehlEl.textContent = '0 Einträge angezeigt – bitte Filter aktivieren';
+      // Karte bei initialem Aufruf trotzdem auf die Region zoomen, damit man sieht wo
+      // sie liegt -- die Landkreis-Polygone sind ja schon eingezeichnet
+      if (!map._listenKarteBoundsGesetzt) {
+        map.setView([50.55, 7.65], 9);
+        map._listenKarteBoundsGesetzt = true;
+      }
+      return;
+    }
 
     var bounds = [];
     var gezeigt = 0;
@@ -5121,20 +5181,13 @@ function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
       gezeigt++;
     }
 
-    // Bounds nur beim ersten Aufruf (oder wenn alles ausgefiltert ist) setzen, nicht
-    // bei jeder Filter-Aenderung -- sonst springt die Karte irritierend hin und her.
+    // Beim ersten Mal mit Treffer-Markern: Bounds setzen
     if (bounds.length && !map._listenKarteBoundsGesetzt) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
       map._listenKarteBoundsGesetzt = true;
-    } else if (!bounds.length && !map._listenKarteBoundsGesetzt) {
-      map.setView([50.65, 7.85], 10);   // Westerwald-Zentrum als Fallback
-      map._listenKarteBoundsGesetzt = true;
     }
-    var zaehlEl = document.getElementById(mapId + '-zaehler');
     if (zaehlEl) {
-      var ohne = (mitGeo.length - gezeigt);
-      zaehlEl.textContent = gezeigt + ' Einträge angezeigt' +
-        (ohne > 0 ? ' (' + ohne + ' durch Filter ausgeblendet)' : '');
+      zaehlEl.textContent = gezeigt + ' Einträge angezeigt';
     }
   }
 
@@ -5194,4 +5247,254 @@ function setzeListenKarteStandortMarker(map, lat, lng) {
   L.marker([lat, lng], { icon: standortIcon })
     .addTo(map)
     .bindPopup('<strong>📍 Mein Standort</strong>');
+}
+
+
+// ════════════════════════════════════════════════════════════════════════
+// VERANSTALTUNGEN-KARTE: alle Termine als Marker, mit Multi-Select-Filtern
+// (Datum, Region, Art). Initial alles deaktiviert -> keine Marker.
+// Filter-State persistiert in window._listenKarteState['veranstaltungen-alle'].
+// ════════════════════════════════════════════════════════════════════════
+
+function renderVeranstaltungenKarte(ziel) {
+  var alle = window.DATA_VERANSTALTUNGEN_ALLE || [];
+  if (!alle.length) {
+    ziel.innerHTML =
+      '<div class="sticky-region">'
+      + navBar('liste/veranstaltungen-alle', 'Veranstaltungen › <strong>Karte</strong>')
+      + intro('Veranstaltungen', '')
+      + '</div>'
+      + '<div class="hinweis">Keine Veranstaltungen verfügbar.</div>'
+      + '<div class="spacer"></div>';
+    return;
+  }
+
+  // Items mit Geo-Koordinaten extrahieren
+  var mitGeo = [];
+  var ohneGeoCount = 0;
+  for (var idx = 0; idx < alle.length; idx++) {
+    var ev = alle[idx];
+    var lat = ev.lat ? parseFloat(ev.lat) : null;
+    var lng = ev.lng ? parseFloat(ev.lng) : null;
+    if (isNaN(lat) || isNaN(lng) || lat == null || lng == null) {
+      ohneGeoCount++;
+      continue;
+    }
+    mitGeo.push({ _orig: ev, _globalIdx: idx, lat: lat, lng: lng });
+  }
+
+  // State persistieren
+  window._listenKarteState = window._listenKarteState || {};
+  var state = window._listenKarteState['veranstaltungen-alle'];
+  if (!state) {
+    state = window._listenKarteState['veranstaltungen-alle'] = {
+      datum: {},   // {heute: true, woche: true, ...}
+      bezirk: {},
+      art: {},
+      standortGefragt: false,
+      eigenerStandort: null
+    };
+  }
+
+  var mapId = 'vkarte-' + Math.random().toString(36).slice(2);
+  var info = { breadcrumb: 'Veranstaltungen', titel: 'Veranstaltungen' };
+
+  // UI bauen
+  var datumOpts = [
+    {key:'heute',  label:'Heute'},
+    {key:'woche',  label:'Diese Woche'},
+    {key:'monat',  label:'Dieser Monat'},
+    {key:'jahr',   label:'Aktuelles Jahr'},
+    {key:'dauer',  label:'Dauerveranstaltungen'}
+  ];
+  var bezirkOpts = [
+    {key:'AK',     label:'Altenkirchen'},
+    {key:'NR',     label:'Neuwied'},
+    {key:'WW',     label:'Westerwald'},
+    {key:'Hessen', label:'Hessen'},
+    {key:'NRW',    label:'NRW'}
+  ];
+  var artOpts = [
+    {key:'lit',      label:'WW-Lit'},
+    {key:'natur',    label:'Naturerlebnisse'},
+    {key:'sonstige', label:'Sonstige'}
+  ];
+
+  function renderCheckGruppe(label, opts, group) {
+    var html = '<div class="listen-karte-filter-gruppe">'
+      + '<span class="listen-karte-filter-label">' + label + ':</span>';
+    for (var i = 0; i < opts.length; i++) {
+      var o = opts[i];
+      var checkedAttr = state[group][o.key] ? ' checked' : '';
+      html += '<label class="listen-karte-check">'
+        + '<input type="checkbox"' + checkedAttr + ' data-vkfilter="' + group + '" data-vkkey="' + escapeHtml(o.key) + '"> '
+        + escapeHtml(o.label) + '</label>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  var html =
+    '<div class="sticky-region">'
+    + navBar('liste/veranstaltungen-alle', 'Veranstaltungen › <strong>Karte</strong>')
+    + intro('Veranstaltungen', '')
+    + '</div>'
+    + '<div class="listen-karte-wrap">'
+    + '<div class="listen-karte-filter">'
+    + renderCheckGruppe('📅 Datum',  datumOpts,  'datum')
+    + renderCheckGruppe('📍 Region', bezirkOpts, 'bezirk')
+    + renderCheckGruppe('🎭 Art',    artOpts,    'art')
+    + '<div class="listen-karte-filter-gruppe">'
+    +   '<small id="' + mapId + '-zaehler">'
+    +     mitGeo.length + ' Veranstaltungen mit Standort'
+    +     (ohneGeoCount > 0 ? ' (' + ohneGeoCount + ' ohne Geo-Daten)' : '')
+    +   '</small></div>'
+    + '</div>'
+    + '<div class="listen-karte-map-wrap">'
+    +   '<div id="' + mapId + '" class="listen-karte-map"></div>'
+    + '</div>'
+    + '</div>';
+
+  ziel.innerHTML = html;
+
+  ladeKartenPlugins().then(function() {
+    initVeranstaltungenKarte(mapId, mitGeo, state);
+  });
+}
+
+
+function initVeranstaltungenKarte(mapId, mitGeo, state) {
+  if (!window.L) return;
+  var map = L.map(mapId);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap-Mitwirkende',
+    maxZoom: 19
+  }).addTo(map);
+
+  zeichneLandkreisGrenzen(map);
+  var markerGroup = L.layerGroup().addTo(map);
+
+  // Hilfsfunktion: prueft ob ein Event-Item zur Datum-Auswahl passt
+  // (Logik analog termineFilterAnwenden())
+  function eventPasstZuDatum(item, datumKeys) {
+    var heute = new Date(); heute.setHours(0,0,0,0);
+    var pad = function(n) { return String(n).padStart(2,'0'); };
+    var heuteStr = heute.getFullYear() + '-' + pad(heute.getMonth()+1) + '-' + pad(heute.getDate());
+    var bisSonntag = (heute.getDay() === 0) ? 0 : (7 - heute.getDay());
+    var sonntag = new Date(heute);
+    sonntag.setDate(heute.getDate() + bisSonntag);
+    var sonntagStr = sonntag.getFullYear() + '-' + pad(sonntag.getMonth()+1) + '-' + pad(sonntag.getDate());
+    var monatsende = new Date(heute.getFullYear(), heute.getMonth()+1, 0);
+    var monatsendeStr = monatsende.getFullYear() + '-' + pad(monatsende.getMonth()+1) + '-' + pad(monatsende.getDate());
+    var jahresende = heute.getFullYear() + '-12-31';
+
+    var d = item.datumIso || '';
+    if (!d) return false;
+    var dEnde = item.datumBisIso || d;
+    if (dEnde < heuteStr) return false;
+    var istMehrtaegig = !!(item.datumBisIso && item.datumBisIso !== item.datumIso);
+
+    // ODER-Logik: passt zu mind. einem aktivierten Datum-Filter
+    for (var i = 0; i < datumKeys.length; i++) {
+      var k = datumKeys[i];
+      if (k === 'dauer') {
+        if (istMehrtaegig) return true;
+      } else {
+        var periodEnde;
+        if      (k === 'heute') periodEnde = heuteStr;
+        else if (k === 'woche') periodEnde = sonntagStr;
+        else if (k === 'monat') periodEnde = monatsendeStr;
+        else if (k === 'jahr')  periodEnde = jahresende;
+        else continue;
+        // Event-Start <= Period-Ende, Event-Ende >= heuteStr (oben schon geprueft)
+        if (d <= periodEnde) return true;
+      }
+    }
+    return false;
+  }
+
+  function refreshMarker() {
+    markerGroup.clearLayers();
+    var aktivDatum = state.datum;
+    var aktivBezirk = state.bezirk;
+    var aktivArt = state.art;
+    var datumAktiv = Object.keys(aktivDatum).length > 0;
+    var bezirkAktiv = Object.keys(aktivBezirk).length > 0;
+    var artAktiv = Object.keys(aktivArt).length > 0;
+    var zaehlEl = document.getElementById(mapId + '-zaehler');
+
+    // Initial alle Filter leer -> keine Marker
+    if (!datumAktiv && !bezirkAktiv && !artAktiv) {
+      if (zaehlEl) zaehlEl.textContent = '0 Veranstaltungen angezeigt – bitte Filter aktivieren';
+      if (!map._listenKarteBoundsGesetzt) {
+        map.setView([50.55, 7.65], 9);
+        map._listenKarteBoundsGesetzt = true;
+      }
+      return;
+    }
+
+    var datumKeys = Object.keys(aktivDatum);
+    var bounds = [];
+    var gezeigt = 0;
+
+    for (var n = 0; n < mitGeo.length; n++) {
+      var e = mitGeo[n];
+      var ev = e._orig;
+      if (datumAktiv && !eventPasstZuDatum(ev, datumKeys)) continue;
+      if (bezirkAktiv && !aktivBezirk[ev.bezirk || '']) continue;
+      if (artAktiv) {
+        var artK = ev.quelle === 'lit' ? 'lit' : (ev.quelle === 'natur' ? 'natur' : 'sonstige');
+        if (!aktivArt[artK]) continue;
+      }
+      var detailUrl = '#detail-karte/event/veranstaltungen-alle_' + e._globalIdx;
+      var popupBody = '<strong>' + escapeHtml(ev.titel || ev.name || 'Veranstaltung') + '</strong>';
+      if (ev.datumIso) {
+        var d = ev.datumIso.split('-');
+        if (d.length === 3) popupBody += '<br><small>' + d[2] + '.' + d[1] + '.' + d[0] + (ev.zeit ? ' ' + escapeHtml(ev.zeit) : '') + '</small>';
+      }
+      if (ev.ort) popupBody += '<br><small>' + escapeHtml(ev.ort) + '</small>';
+      popupBody += '<br><a href="' + detailUrl + '" class="listen-karte-popup-link">Details &rsaquo;</a>';
+      var m = L.marker([e.lat, e.lng]).bindPopup(popupBody);
+      markerGroup.addLayer(m);
+      bounds.push([e.lat, e.lng]);
+      gezeigt++;
+    }
+
+    if (bounds.length && !map._listenKarteBoundsGesetzt) {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      map._listenKarteBoundsGesetzt = true;
+    }
+    if (zaehlEl) zaehlEl.textContent = gezeigt + ' Veranstaltungen angezeigt';
+  }
+
+  // Event-Listener fuer Filter-Checkboxen
+  var allChecks = document.querySelectorAll('[data-vkfilter]');
+  for (var c = 0; c < allChecks.length; c++) {
+    (function(cb) {
+      cb.addEventListener('change', function() {
+        var grp = cb.getAttribute('data-vkfilter');
+        var key = cb.getAttribute('data-vkkey');
+        if (cb.checked) state[grp][key] = true;
+        else delete state[grp][key];
+        refreshMarker();
+      });
+    })(allChecks[c]);
+  }
+
+  refreshMarker();
+  setTimeout(function() { map.invalidateSize(); }, 120);
+
+  // Standort-Handling
+  if (state.eigenerStandort) {
+    setzeListenKarteStandortMarker(map, state.eigenerStandort[0], state.eigenerStandort[1]);
+  } else if (!state.standortGefragt) {
+    fuegeStandortBannerHinzu(map, {
+      onJa: function(coords) {
+        state.standortGefragt = true;
+        state.eigenerStandort = coords;
+      },
+      onNein: function() { state.standortGefragt = true; },
+      onFehler: function() { state.standortGefragt = true; }
+    });
+  }
 }
