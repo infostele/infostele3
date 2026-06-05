@@ -395,6 +395,14 @@ function router() {
   else if (teile[0] === 'liste' && teile[1])    renderListe(ziel, teile[1]);
   else if (teile[0] === 'detail' && teile[1] && teile[2]) renderDetail(ziel, teile[1], teile[2]);
   else if (teile[0] === 'karte'  && teile[1] && teile[2]) renderKarte(ziel, teile[1], teile[2]);
+  else if (teile[0] === 'karte-liste' && teile[1])        renderListenKarte(ziel, teile[1]);
+  else if (teile[0] === 'detail-karte' && teile[1] && teile[2]) {
+    // Wie detail/<typ>/<key>, aber Zurueck-Button fuehrt auf die Karte (nicht Liste)
+    var sk = teile[2];
+    var skParts = sk.split('_');
+    var lsSlug = skParts.slice(0, -1).join('_');
+    renderDetail(ziel, teile[1], sk, 'karte-liste/' + lsSlug);
+  }
   else renderHome(ziel);
 }
 function navigateTo(pfad) { window.location.hash = pfad; }
@@ -577,6 +585,14 @@ var LISTEN = {
       {key:'badesee',      label:'Badesee'},
       {key:'sonstige',     label:'Sonstige'}
     ],
+    filterBezirke:[
+      {key:'alle',   label:'Alle'},
+      {key:'AK',     label:'Altenkirchen'},
+      {key:'NR',     label:'Neuwied'},
+      {key:'WW',     label:'Westerwald'},
+      {key:'Hessen', label:'Hessen'},
+      {key:'NRW',    label:'NRW'}
+    ],
     typErkenner: function(item) {
       var cats = (item.categories || []).join(' | ').toLowerCase();
       var name = (item.name || '').toLowerCase();
@@ -605,6 +621,14 @@ var LISTEN = {
       {key:'camping',       label:'Camping & Mobilheim'},
       {key:'sonstige',      label:'Sonstige'}
     ],
+    filterBezirke:[
+      {key:'alle',   label:'Alle'},
+      {key:'AK',     label:'Altenkirchen'},
+      {key:'NR',     label:'Neuwied'},
+      {key:'WW',     label:'Westerwald'},
+      {key:'Hessen', label:'Hessen'},
+      {key:'NRW',    label:'NRW'}
+    ],
     typErkenner: function(item) {
       var cats = (item.categories || []).join(' | ').toLowerCase();
       if (/(hotel|pension|gasthof|gasthaus|gasthaeuser)/.test(cats)) return 'hotel';
@@ -631,6 +655,14 @@ var LISTEN = {
       {key:'kneipe',     label:'Bar/Kneipe'},
       {key:'baeckerei',  label:'Bäckerei'},
       {key:'sonstige',   label:'Sonstige'}
+    ],
+    filterBezirke:[
+      {key:'alle',   label:'Alle'},
+      {key:'AK',     label:'Altenkirchen'},
+      {key:'NR',     label:'Neuwied'},
+      {key:'WW',     label:'Westerwald'},
+      {key:'Hessen', label:'Hessen'},
+      {key:'NRW',    label:'NRW'}
     ],
     typErkenner: function(item) {
       var cats = (item.categories || []).join(' | ').toLowerCase();
@@ -1035,6 +1067,9 @@ function renderEtappenListe(ziel, slug, info, zurueckSlug, detailTyp) {
       + navBar('liste/' + zurueckSlug, info.breadcrumb)
       + intro(info.titel, info.untertitel)
       + '<div id="filter-leiste-wrapper">' + filterUI() + '</div>'
+    + '</div>'
+    + '<div class="listen-karte-btn-row">'
+      + '<a class="listen-karte-btn" href="#karte-liste/' + escapeHtml(slug) + '">🗺️ Karte mit allen Touren öffnen</a>'
     + '</div>'
     + '<div id="filter-treffer" class="filter-treffer">' + trefferTxt + '</div>'
     + '<div class="liste" id="etappen-liste">' + baueListenInhalt(slug, info, detailTyp) + '</div>'
@@ -1504,7 +1539,7 @@ function renderDatenListe(ziel, slug, l) {
 // ════════════════════════════════════════════════════════════════
 // DETAIL-SEITE
 // ════════════════════════════════════════════════════════════════
-function renderDetail(ziel, typ, schluessel) {
+function renderDetail(ziel, typ, schluessel, zurueckOverride) {
   // Spezialfall Westerwald-Box-Betriebe: schluessel ist nur die Zahl
   if (typ === 'wwbox') {
     var bIdx = parseInt(schluessel, 10);
@@ -1541,6 +1576,8 @@ function renderDetail(ziel, typ, schluessel) {
     ziel.innerHTML = navBar('home','') + intro('Nicht gefunden','') + '<div class="hinweis">Eintrag nicht verfügbar.</div>';
     return;
   }
+  // Optional: Zurueck-Ziel ueberschreiben (z.B. wenn Aufruf aus der Karte kommt)
+  if (zurueckOverride) zurueck = zurueckOverride;
   var item = daten[idx];
   // Karte-URL für Detail-Renderer bereitstellen (wird nur genutzt, wenn Item
   // tatsächlich Koordinaten/GPX hat - die Render-Funktion prüft das selbst).
@@ -2284,20 +2321,45 @@ function renderUnterkunftDetail(ziel, item, info, zurueck) {
 // AUSFLUGSZIELE / UNTERKÜNFTE: Liste mit Typ-Filter + Suche
 // ════════════════════════════════════════════════════════════════
 
-var GEFILTERT_STATE = { typ: 'alle', suche: '' };
+var GEFILTERT_STATE = { typ: 'alle', bezirk: 'alle', suche: '' };
 window._aktuelleGefiltert = null;
+
+// Heuristik PLZ -> Verwaltungsbezirk (analog zu Veranstaltungen)
+function plzZuBezirk(plz) {
+  if (!plz) return '';
+  var p = String(plz).trim().substring(0, 2);
+  var m = { '35':'Hessen', '53':'NR', '56':'WW', '57':'AK', '51':'NRW' };
+  return m[p] || '';
+}
 
 function gefiltertFilterUI(l) {
   var html = '<div class="filter-leiste gefiltert-filter">';
+
+  // Erste Zeile: Typ-Filter (Art)
   html += '<div class="filter-gruppe filter-bezirk">';
   html += '<span class="filter-label">' + escapeHtml(l.filterLabel || 'Typ') + ':</span>';
   for (var i = 0; i < l.filterTypen.length; i++) {
     var t = l.filterTypen[i];
     var aktiv = GEFILTERT_STATE.typ === t.key;
     html += '<button class="filter-pill' + (aktiv ? ' aktiv' : '') + '" '
-      + 'onclick="setzeGefiltertFilter(\'' + t.key + '\')">' + escapeHtml(t.label) + '</button>';
+      + 'onclick="setzeGefiltertFilter(\'typ\',\'' + t.key + '\')">' + escapeHtml(t.label) + '</button>';
   }
   html += '</div>';
+
+  // Zweite Zeile: Bezirks-Filter (falls definiert)
+  if (l.filterBezirke && l.filterBezirke.length) {
+    html += '<div class="filter-gruppe filter-bezirk">';
+    html += '<span class="filter-label">📍 Region:</span>';
+    for (var j = 0; j < l.filterBezirke.length; j++) {
+      var b = l.filterBezirke[j];
+      var aktivB = GEFILTERT_STATE.bezirk === b.key;
+      html += '<button class="filter-pill' + (aktivB ? ' aktiv' : '') + '" '
+        + 'onclick="setzeGefiltertFilter(\'bezirk\',\'' + b.key + '\')">' + escapeHtml(b.label) + '</button>';
+    }
+    html += '</div>';
+  }
+
+  // Suche
   html += '<div class="filter-gruppe filter-suche">';
   html += '<input type="text" class="filter-such-input" placeholder="🔍 Suchen…" '
     + 'value="' + escapeHtml(GEFILTERT_STATE.suche) + '" '
@@ -2307,8 +2369,10 @@ function gefiltertFilterUI(l) {
   return html;
 }
 
-function setzeGefiltertFilter(key) {
-  GEFILTERT_STATE.typ = key;
+function setzeGefiltertFilter(group, key) {
+  // Rückwärtskompatibel: alter Aufruf setzeGefiltertFilter('alle') wird zu typ='alle'
+  if (arguments.length === 1) { key = group; group = 'typ'; }
+  GEFILTERT_STATE[group] = key;
   refreshGefiltertView();
 }
 function setzeGefiltertSuche(val) {
@@ -2344,8 +2408,12 @@ function baueGefiltertListe(slug, l) {
     if (GEFILTERT_STATE.typ !== 'alle') {
       if (gefiltertItemTyp(item, l) !== GEFILTERT_STATE.typ) return false;
     }
+    if (GEFILTERT_STATE.bezirk !== 'alle') {
+      var bez = plzZuBezirk(item.plz);
+      if (bez !== GEFILTERT_STATE.bezirk) return false;
+    }
     if (suche) {
-      var blob = ((item.name || '') + ' ' + (item.town || '') + ' ' + (item.region || '') + ' ' + (item.topic || '') + ' ' + (item.mainTopic || '')).toLowerCase();
+      var blob = ((item.name || '') + ' ' + (item.town || '') + ' ' + (item.ort || '') + ' ' + (item.region || '') + ' ' + (item.topic || '') + ' ' + (item.mainTopic || '')).toLowerCase();
       if (blob.indexOf(suche) < 0) return false;
     }
     return true;
@@ -2390,7 +2458,7 @@ function baueGefiltertListe(slug, l) {
 }
 
 function renderGefiltertListe(ziel, slug, l) {
-  GEFILTERT_STATE = { typ: 'alle', suche: '' };
+  GEFILTERT_STATE = { typ: 'alle', bezirk: 'alle', suche: '' };
   window._aktuelleGefiltert = { slug: slug, info: l };
 
   var rohdaten = window[l.datenName] || [];
@@ -2411,6 +2479,9 @@ function renderGefiltertListe(ziel, slug, l) {
       + navBar(l.zurueck, l.breadcrumb)
       + intro(l.titel, l.untertitel)
       + '<div id="gefiltert-filter-wrap">' + gefiltertFilterUI(l) + '</div>'
+    + '</div>'
+    + '<div class="listen-karte-btn-row">'
+      + '<a class="listen-karte-btn" href="#karte-liste/' + escapeHtml(slug) + '">🗺️ Karte mit allen Einträgen öffnen</a>'
     + '</div>'
     + '<div id="gefiltert-treffer" class="filter-treffer"><strong>' + liste.gefiltertCount + '</strong> von <strong>' + liste.gesamtCount + '</strong> Einträgen</div>'
     + '<div class="liste" id="gefiltert-liste">' + liste.html + '</div>'
@@ -4769,4 +4840,328 @@ if (document.readyState === 'loading') {
   _pois_konvertiereAlle();
   _unterkuenfte_konvertiereAlle();
   _gastronomie_konvertiereAlle();
+}
+
+
+// ════════════════════════════════════════════════════════════════════════
+// LISTEN-KARTE: zeigt alle Eintraege einer gefilterten Liste als Marker.
+// Filter: Checkboxen oben (Mehrfachauswahl).
+// Marker-Popup hat Link zur Detail-Seite mit "zurueck=karte-liste/<slug>".
+// ════════════════════════════════════════════════════════════════════════
+
+function renderListenKarte(ziel, slug) {
+  // Welche Datenquelle? POI-Liste (LISTEN[slug]) oder Touren (WANDER_DATEN / RAD_DATEN)?
+  var info = null;       // Listen-Konfig (mit titel, breadcrumb, filterTypen)
+  var datenName = null;
+  var detailKey = null;
+  var modus = null;      // 'poi' | 'tour'
+
+  if (slug.indexOf('tourismus-wandern-') === 0) {
+    var subW = slug.replace('tourismus-wandern-', '');
+    var winfo = WANDER_DATEN[subW];
+    if (winfo) {
+      modus = 'tour';
+      detailKey = 'wandern';
+      datenName = winfo.name;
+      info = {
+        titel: winfo.titel,
+        breadcrumb: winfo.breadcrumb,
+        untertitel: winfo.untertitel || '',
+        zurueck: 'liste/' + slug,
+        datenName: datenName,
+        detailKey: detailKey,
+        filterLabel: 'Schwierigkeit',
+        // Filter-Optionen fuer Touren — wir nutzen die in der App schon bekannte normalisierte
+        // Schwierigkeitsskala (siehe normalisiere() in app.js)
+        filterTypen: [
+          {key:'alle',   label:'Alle'},
+          {key:'leicht', label:'Leicht'},
+          {key:'mittel', label:'Mittel'},
+          {key:'schwer', label:'Schwer'}
+        ],
+        filterBezirke: [
+          {key:'alle',   label:'Alle'},
+          {key:'AK',     label:'Altenkirchen'},
+          {key:'NR',     label:'Neuwied'},
+          {key:'WW',     label:'Westerwald'},
+          {key:'Hessen', label:'Hessen'},
+          {key:'NRW',    label:'NRW'}
+        ],
+        typErkenner: function(item) {
+          var sw = (item.difficulty || '').toLowerCase();
+          if (sw.indexOf('leicht') >= 0) return 'leicht';
+          if (sw.indexOf('mittel') >= 0) return 'mittel';
+          if (sw.indexOf('schwer') >= 0 || sw.indexOf('anspruchsvoll') >= 0) return 'schwer';
+          return 'leicht'; // Default wenn unbekannt
+        }
+      };
+    }
+  } else if (slug.indexOf('tourismus-radfahren-') === 0) {
+    var subR = slug.replace('tourismus-radfahren-', '');
+    var rinfo = RAD_DATEN[subR];
+    if (rinfo) {
+      modus = 'tour';
+      detailKey = 'rad';
+      datenName = rinfo.name;
+      info = {
+        titel: rinfo.titel,
+        breadcrumb: rinfo.breadcrumb,
+        untertitel: rinfo.untertitel || '',
+        zurueck: 'liste/' + slug,
+        datenName: datenName,
+        detailKey: detailKey,
+        filterLabel: 'Schwierigkeit',
+        filterTypen: [
+          {key:'alle',   label:'Alle'},
+          {key:'leicht', label:'Leicht'},
+          {key:'mittel', label:'Mittel'},
+          {key:'schwer', label:'Schwer'}
+        ],
+        filterBezirke: [
+          {key:'alle',   label:'Alle'},
+          {key:'AK',     label:'Altenkirchen'},
+          {key:'NR',     label:'Neuwied'},
+          {key:'WW',     label:'Westerwald'},
+          {key:'Hessen', label:'Hessen'},
+          {key:'NRW',    label:'NRW'}
+        ],
+        typErkenner: function(item) {
+          var sw = (item.difficulty || '').toLowerCase();
+          if (sw.indexOf('leicht') >= 0) return 'leicht';
+          if (sw.indexOf('mittel') >= 0) return 'mittel';
+          if (sw.indexOf('schwer') >= 0 || sw.indexOf('anspruchsvoll') >= 0) return 'schwer';
+          return 'leicht';
+        }
+      };
+    }
+  } else {
+    // Standard-POI-Modus
+    var l = LISTEN[slug];
+    if (l && l.datenName) {
+      modus = 'poi';
+      info = l;
+      datenName = l.datenName;
+      detailKey = l.detailKey;
+    }
+  }
+
+  if (!info || !datenName) {
+    ziel.innerHTML = navBar('home','') + intro('Karte nicht verfügbar','')
+      + '<div class="hinweis">Liste nicht gefunden.</div>';
+    return;
+  }
+
+  var alle = window[datenName] || [];
+  if (!alle.length) {
+    ziel.innerHTML =
+      '<div class="sticky-region">'
+      + navBar('liste/' + slug, info.breadcrumb + ' › <strong>Karte</strong>')
+      + intro(info.titel, info.untertitel || '')
+      + '</div>'
+      + '<div class="hinweis">Keine Daten verfügbar.</div>'
+      + '<div class="spacer"></div>';
+    return;
+  }
+
+  // Items "kartenfähig" machen — bei Touren Startpunkt aus _track extrahieren
+  // Wir bauen eine Hilfsliste mit { item, globalIdx, lat, lng, name, ort }
+  // und filtern Items ohne Geo aus
+  var mitGeo = [];
+  var ohneGeoCount = 0;
+  for (var idx = 0; idx < alle.length; idx++) {
+    var it = alle[idx];
+    var lat = null, lng = null;
+    if (modus === 'tour') {
+      // Startpunkt aus item._track[0][0] = [lng, lat, h]
+      if (it._track && it._track.length && it._track[0] && it._track[0].length) {
+        var pt = it._track[0][0];
+        if (pt && pt.length >= 2) { lng = pt[0]; lat = pt[1]; }
+      }
+    } else {
+      lat = it.lat; lng = it.lng;
+    }
+    if (lat == null || lng == null) { ohneGeoCount++; continue; }
+    mitGeo.push({
+      _orig: it,
+      _globalIdx: idx,
+      lat: lat,
+      lng: lng,
+      name: it.name || it.title || '',
+      ort: it.ort || (it._etappeNr ? 'Etappe ' + it._etappeNr : ''),
+      plz: it.plz || ''
+    });
+  }
+
+  var mapId = 'lkarte-' + Math.random().toString(36).slice(2);
+
+  // Filter-Sektion: Checkboxen fuer Typen + Bezirke
+  var typOpts = (info.filterTypen || []).filter(function(t) { return t.key !== 'alle'; });
+  var bezOpts = (info.filterBezirke || []).filter(function(b) { return b.key !== 'alle'; });
+
+  var html =
+    '<div class="sticky-region">'
+    + navBar('liste/' + slug, info.breadcrumb + ' › <strong>Karte</strong>')
+    + intro(info.titel, '')
+    + '</div>'
+    + '<div class="listen-karte-wrap">'
+    + '<div class="listen-karte-filter">';
+
+  if (typOpts.length) {
+    html += '<div class="listen-karte-filter-gruppe">'
+      + '<span class="listen-karte-filter-label">' + escapeHtml(info.filterLabel || 'Art') + ':</span>';
+    for (var i = 0; i < typOpts.length; i++) {
+      var t = typOpts[i];
+      html += '<label class="listen-karte-check">'
+        + '<input type="checkbox" checked data-lkfilter="typ" data-lkkey="' + escapeHtml(t.key) + '"> '
+        + escapeHtml(t.label) + '</label>';
+    }
+    html += '</div>';
+  }
+  if (bezOpts.length && modus === 'poi') {
+    // Bezirks-Filter nur bei POIs sinnvoll (Touren haben oft keine PLZ am Item-Level)
+    html += '<div class="listen-karte-filter-gruppe">'
+      + '<span class="listen-karte-filter-label">📍 Region:</span>';
+    for (var j = 0; j < bezOpts.length; j++) {
+      var b = bezOpts[j];
+      html += '<label class="listen-karte-check">'
+        + '<input type="checkbox" checked data-lkfilter="bezirk" data-lkkey="' + escapeHtml(b.key) + '"> '
+        + escapeHtml(b.label) + '</label>';
+    }
+    html += '</div>';
+  }
+
+  // Standort-Button + Zaehler
+  html += '<div class="listen-karte-filter-gruppe">'
+    + '<button class="listen-karte-standort-btn" type="button" onclick="zeigeMeinenStandort(\'' + mapId + '\')">📍 Mein Standort</button>'
+    + '<small id="' + mapId + '-zaehler" style="margin-left:8px;">'
+    + mitGeo.length + ' Einträge mit Standort'
+    + (ohneGeoCount > 0 ? ' (' + ohneGeoCount + ' ohne Geo-Daten)' : '')
+    + '</small></div>';
+  html += '</div>';   // /listen-karte-filter
+
+  html += '<div class="listen-karte-map-wrap">'
+    + '<div id="' + mapId + '" class="listen-karte-map"></div>'
+    + '</div>'
+    + '</div>';   // /listen-karte-wrap
+
+  ziel.innerHTML = html;
+
+  // Karte initialisieren
+  ladeKartenPlugins().then(function() {
+    initListenKarte(mapId, slug, info, mitGeo, modus);
+  });
+}
+
+
+function initListenKarte(mapId, slug, info, mitGeo, modus) {
+  if (!window.L) return;
+  var map = L.map(mapId);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap-Mitwirkende',
+    maxZoom: 19
+  }).addTo(map);
+
+  var markerGroup = L.layerGroup().addTo(map);
+
+  function refreshMarker() {
+    markerGroup.clearLayers();
+    // Aktivierte Filter sammeln
+    var aktivTyp = {}, aktivBez = {};
+    var typChecks = document.querySelectorAll('[data-lkfilter="typ"]');
+    for (var i = 0; i < typChecks.length; i++) {
+      if (typChecks[i].checked) aktivTyp[typChecks[i].getAttribute('data-lkkey')] = true;
+    }
+    var bezChecks = document.querySelectorAll('[data-lkfilter="bezirk"]');
+    for (var k = 0; k < bezChecks.length; k++) {
+      if (bezChecks[k].checked) aktivBez[bezChecks[k].getAttribute('data-lkkey')] = true;
+    }
+    var typFilterAktiv = Object.keys(aktivTyp).length > 0 && (info.filterTypen && info.filterTypen.length);
+    var bezFilterAktiv = Object.keys(aktivBez).length > 0 && (info.filterBezirke && info.filterBezirke.length);
+
+    var bounds = [];
+    var gezeigt = 0;
+    for (var n = 0; n < mitGeo.length; n++) {
+      var e = mitGeo[n];
+      var it = e._orig;
+      if (typFilterAktiv && info.typErkenner) {
+        var tk = info.typErkenner(it);
+        if (!aktivTyp[tk]) continue;
+      }
+      if (bezFilterAktiv) {
+        var bk = plzZuBezirk(e.plz);
+        if (!aktivBez[bk]) continue;
+      }
+      var detailUrl = '#detail-karte/' + info.detailKey + '/' + slug + '_' + e._globalIdx;
+      var popup = '<strong>' + escapeHtml(e.name) + '</strong>';
+      if (e.ort) popup += '<br><small>' + escapeHtml(e.ort) + '</small>';
+      popup += '<br><a href="' + detailUrl + '" class="listen-karte-popup-link">Details &rsaquo;</a>';
+      var m = L.marker([e.lat, e.lng]).bindPopup(popup);
+      markerGroup.addLayer(m);
+      bounds.push([e.lat, e.lng]);
+      gezeigt++;
+    }
+
+    if (bounds.length) {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    } else {
+      map.setView([50.65, 7.85], 10);   // Westerwald-Zentrum
+    }
+    var zaehlEl = document.getElementById(mapId + '-zaehler');
+    if (zaehlEl) {
+      zaehlEl.textContent = gezeigt + ' Einträge angezeigt' +
+        (mitGeo.length !== gezeigt ? ' (' + (mitGeo.length - gezeigt) + ' durch Filter ausgeblendet)' : '');
+    }
+  }
+
+  var allChecks = document.querySelectorAll('[data-lkfilter]');
+  for (var c = 0; c < allChecks.length; c++) {
+    allChecks[c].addEventListener('change', refreshMarker);
+  }
+
+  refreshMarker();
+  setTimeout(function() { map.invalidateSize(); }, 120);
+
+  // Karte als globale Referenz fuer den Standort-Button
+  window._aktuelleListenKarte = map;
+}
+
+
+// Zeigt den eigenen Standort auf der Karte an (per Geolocation-API)
+function zeigeMeinenStandort(mapId) {
+  var map = window._aktuelleListenKarte;
+  if (!map) return;
+  if (!navigator.geolocation) {
+    alert('Dein Browser unterstützt keine Standort-Abfrage.');
+    return;
+  }
+  var btnEl = document.querySelector('.listen-karte-standort-btn');
+  if (btnEl) btnEl.textContent = 'Standort wird ermittelt...';
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    if (btnEl) btnEl.textContent = '📍 Mein Standort';
+    var lat = pos.coords.latitude;
+    var lng = pos.coords.longitude;
+    // Marker fuer eigenen Standort (eindeutige Farbe)
+    if (window._eigenerStandortMarker) {
+      map.removeLayer(window._eigenerStandortMarker);
+    }
+    var standortIcon = L.divIcon({
+      className: 'listen-karte-standort-icon',
+      html: '<div style="width:18px;height:18px;background:#2196f3;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    window._eigenerStandortMarker = L.marker([lat, lng], { icon: standortIcon })
+      .addTo(map)
+      .bindPopup('<strong>📍 Mein Standort</strong>')
+      .openPopup();
+    // Auf den Standort zoomen, aber nicht zu nah
+    map.setView([lat, lng], 12);
+  }, function(err) {
+    if (btnEl) btnEl.textContent = '📍 Mein Standort';
+    var msg = 'Standort konnte nicht ermittelt werden.';
+    if (err.code === 1) msg = 'Standort-Berechtigung verweigert.';
+    else if (err.code === 2) msg = 'Standort nicht verfügbar.';
+    else if (err.code === 3) msg = 'Standort-Abfrage zeitlich überschritten.';
+    alert(msg);
+  }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
 }
