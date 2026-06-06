@@ -402,6 +402,9 @@ function router() {
       renderListenKarte(ziel, teile[1]);
     }
   }
+  else if (teile[0] === 'unterkunft-buchen' && teile[1]) {
+    renderUnterkunftBuchung(ziel, teile[1], teile[2] || '');
+  }
   else if (teile[0] === 'detail-karte' && teile[1] && teile[2]) {
     // Wie detail/<typ>/<key>, aber Zurueck-Button fuehrt auf die Karte (nicht Liste)
     var sk = teile[2];
@@ -478,11 +481,11 @@ var KATEGORIEN = {
   'tourismus': {
     titel:'Tourismus & Freizeit', untertitel:'Wandern, Radfahren, Ausflugsziele und mehr.',
     subs:[
-      {slug:'wandern',         label:'Wandern',         meta:'5 Wanderregionen', icon:ICONS.wandern},
-      {slug:'radfahren',       label:'Radfahren',       meta:'5 Routenarten',     icon:ICONS.fahrrad},
-      {slug:'ausflugsziele',   label:'Ausflugsziele',   meta:'Sehenswertes, Badeseen & mehr', icon:ICONS.markierung},
-      {slug:'gastronomie',     label:'Gastronomie',     meta:'Restaurants, Cafés & mehr',     icon:ICONS.markt},
-      {slug:'unterkuenfte',    label:'Unterkünfte',     meta:'Hotels, Pensionen, Ferienwohnungen', icon:ICONS.haus}
+      {slug:'wandern',         label:'Wandern',         meta:'', icon:ICONS.wandern},
+      {slug:'radfahren',       label:'Radfahren',       meta:'', icon:ICONS.fahrrad},
+      {slug:'ausflugsziele',   label:'Ausflugsziele',   meta:'', icon:ICONS.markierung},
+      {slug:'gastronomie',     label:'Gastronomie',     meta:'', icon:ICONS.markt},
+      {slug:'unterkuenfte',    label:'Unterkünfte',     meta:'', icon:ICONS.haus}
     ]
   },
   'regional': {
@@ -555,12 +558,12 @@ var LISTEN = {
     zurueck:'kategorie/tourismus', untertitel:'Die Wandertouren des Westerwaldes.',
     typ:'unterkategorie',
     items:[
-      {label:'WesterwaldSteig', meta:'Etappen & Erlebnisschleifen', sub:'westerwaldsteig', icon:ICONS.wandernSimple},
-      {label:'Wäller Touren',   meta:'Tageswanderungen',            sub:'waeller-touren',  icon:ICONS.wandernSimple},
-      {label:'Kleine Wäller',   meta:'Kurze Rundtouren',            sub:'kleine-waeller',  icon:ICONS.wandernSimple},
-      {label:'Wiedweg',         meta:'Etappen entlang der Wied',    sub:'wiedweg',         icon:ICONS.wandernSimple},
-      {label:'Druidensteig',    meta:'Auf den Spuren der Kelten',   sub:'druidensteig',    icon:ICONS.wandernSimple},
-      {label:'Einzeltouren',    meta:'Weitere Touren im Westerwald',sub:'einzeltouren',    icon:ICONS.wandernSimple}
+      {label:'WesterwaldSteig', meta:'', sub:'westerwaldsteig', icon:ICONS.wandernSimple},
+      {label:'Wäller Touren',   meta:'', sub:'waeller-touren',  icon:ICONS.wandernSimple},
+      {label:'Kleine Wäller',   meta:'', sub:'kleine-waeller',  icon:ICONS.wandernSimple},
+      {label:'Wiedweg',         meta:'', sub:'wiedweg',         icon:ICONS.wandernSimple},
+      {label:'Druidensteig',    meta:'', sub:'druidensteig',    icon:ICONS.wandernSimple},
+      {label:'Einzeltouren',    meta:'', sub:'einzeltouren',    icon:ICONS.wandernSimple}
     ]
   },
   'tourismus-radfahren': {
@@ -568,10 +571,10 @@ var LISTEN = {
     zurueck:'kategorie/tourismus', untertitel:'Routen für jeden Anspruch.',
     typ:'unterkategorie',
     items:[
-      {label:'Rundradwege',     meta:'Tagestouren',          sub:'rundradwege',     icon:ICONS.rundrad},
-      {label:'Streckenradwege', meta:'Mehrtagestouren',       sub:'streckenradwege', icon:ICONS.streckenrad},
-      {label:'Gravelbike',      meta:'Schotterstrecken',     sub:'gravelbike',      icon:ICONS.gravelbike},
-      {label:'Mountainbike',    meta:'Trails & Singletracks', sub:'mountainbike',   icon:ICONS.mountainbike}
+      {label:'Rundradwege',     meta:'', sub:'rundradwege',     icon:ICONS.rundrad},
+      {label:'Streckenradwege', meta:'', sub:'streckenradwege', icon:ICONS.streckenrad},
+      {label:'Gravelbike',      meta:'', sub:'gravelbike',      icon:ICONS.gravelbike},
+      {label:'Mountainbike',    meta:'', sub:'mountainbike',    icon:ICONS.mountainbike}
     ]
   },
   'tourismus-ausflugsziele': {
@@ -804,9 +807,146 @@ function normalisiere(item) {
 
 function gpxAusTourenplaner(url) {
   if (!url) return null;
-  var m = url.match(/tour\/(\d+)/);
+  // DataHub liefert Kurz-URLs (/de/r/12345), aeltere Bestaende auch Langform
+  // (/de/tour/12345). Beide haben dieselbe Tour-ID und werden vom GPX-Endpoint
+  // unter ?i=ID akzeptiert.
+  var m = url.match(/\/(?:r|tour)\/(\d+)/);
   if (!m) return null;
   return 'https://www.tourenplaner-rheinland-pfalz.de/de/download.tour.gpx?i=' + m[1] + '&project=oar-rlp';
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+// POINT-IN-POLYGON: Standard Ray-Casting-Algorithmus. Wird benutzt um den
+// Landkreis (AK/NR/WW) aus den Geo-Koordinaten eines Tour-Startpunkts zu
+// ermitteln -- Grundlage fuer den Region-Filter bei Wandern und Radfahren.
+// GeoJSON-Koordinaten sind immer [lng, lat] (NICHT [lat, lng]!).
+// ──────────────────────────────────────────────────────────────────────
+function pointInRing(pt, ring) {
+  var x = pt[0], y = pt[1], inside = false;
+  for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    var xi = ring[i][0], yi = ring[i][1];
+    var xj = ring[j][0], yj = ring[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+function pointInGeometry(pt, geom) {
+  if (!geom) return false;
+  if (geom.type === 'Polygon') {
+    var rings = geom.coordinates;
+    if (!rings.length || !pointInRing(pt, rings[0])) return false;
+    // Loecher (innere Ringe) abziehen
+    for (var i = 1; i < rings.length; i++) {
+      if (pointInRing(pt, rings[i])) return false;
+    }
+    return true;
+  } else if (geom.type === 'MultiPolygon') {
+    for (var k = 0; k < geom.coordinates.length; k++) {
+      if (pointInGeometry(pt, { type: 'Polygon', coordinates: geom.coordinates[k] })) return true;
+    }
+  }
+  return false;
+}
+// Liefert 'AK', 'NR', 'WW' oder null (falls Punkt ausserhalb der 3 Kreise liegt).
+function ermittleBezirkAusKoords(lat, lng) {
+  if (!window.LANDKREISE_WESTERWALD || lat == null || lng == null) return null;
+  var pt = [lng, lat];
+  var fc = window.LANDKREISE_WESTERWALD;
+  for (var i = 0; i < fc.features.length; i++) {
+    var f = fc.features[i];
+    if (pointInGeometry(pt, f.geometry)) {
+      var name = (f.properties && f.properties.name) || '';
+      if (name === 'Altenkirchen')    return 'AK';
+      if (name === 'Neuwied')         return 'NR';
+      if (name === 'Westerwaldkreis') return 'WW';
+    }
+  }
+  return null;
+}
+// Cached Bezirk-Lookup pro Tour basierend auf erstem Trackpunkt.
+function tourBezirk(tour) {
+  if (tour._bezirkCache !== undefined) return tour._bezirkCache;
+  var pt = null;
+  if (tour._track && tour._track.length && tour._track[0] && tour._track[0].length) {
+    pt = tour._track[0][0];  // [lng, lat, h]
+  }
+  if (!pt || pt.length < 2) {
+    tour._bezirkCache = null;
+    return null;
+  }
+  tour._bezirkCache = ermittleBezirkAusKoords(pt[1], pt[0]);
+  return tour._bezirkCache;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// GPX-FALLBACK: aus inline-Track (DataHub-Format) GPX-XML generieren und
+// als Blob-Download anbieten. Wird genutzt wenn keine externe GPX-URL
+// verfuegbar ist (gpxAusTourenplaner findet keinen Treffer im Tour-Link).
+// Track-Format: Array von Segmenten, jedes Segment ein Array von Punkten,
+// Punkt = [lng, lat, ele].
+// ──────────────────────────────────────────────────────────────────────
+function trackToGpx(track, name) {
+  if (!track || !track.length) return null;
+  var esc = function(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                          .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  };
+  var xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<gpx version="1.1" creator="Guck ma, Westerwald" xmlns="http://www.topografix.com/GPX/1/1">\n';
+  xml += '  <metadata>\n';
+  xml += '    <name>' + esc(name || 'Tour') + '</name>\n';
+  xml += '    <link href="https://infostele.github.io/infostele3/"><text>Guck ma, Westerwald</text></link>\n';
+  xml += '  </metadata>\n';
+  xml += '  <trk>\n';
+  xml += '    <name>' + esc(name || 'Tour') + '</name>\n';
+  for (var s = 0; s < track.length; s++) {
+    var seg = track[s];
+    if (!seg || !seg.length) continue;
+    xml += '    <trkseg>\n';
+    for (var p = 0; p < seg.length; p++) {
+      var pt = seg[p];
+      if (!pt || pt.length < 2) continue;
+      var lng = pt[0], lat = pt[1], ele = pt[2];
+      if (typeof lng !== 'number' || typeof lat !== 'number') continue;
+      xml += '      <trkpt lat="' + lat + '" lon="' + lng + '">';
+      if (typeof ele === 'number' && !isNaN(ele)) xml += '<ele>' + ele + '</ele>';
+      xml += '</trkpt>\n';
+    }
+    xml += '    </trkseg>\n';
+  }
+  xml += '  </trk>\n';
+  xml += '</gpx>\n';
+  return xml;
+}
+
+// Loest den GPX-Download fuer die aktuell angezeigte Tour aus. Wird vom
+// onclick-Handler des GPX-Buttons aufgerufen. Die Track-Daten liegen in
+// window._aktiveTourGpx, das im renderRouteDetail bei jedem Aufruf gesetzt
+// wird (siehe dort).
+function downloadAktiveTourAlsGpx() {
+  var data = window._aktiveTourGpx;
+  if (!data || !data.track) {
+    alert('Keine Track-Daten verfügbar.');
+    return;
+  }
+  var gpx = trackToGpx(data.track, data.name);
+  if (!gpx) {
+    alert('GPX konnte nicht erzeugt werden.');
+    return;
+  }
+  var blob = new Blob([gpx], { type: 'application/gpx+xml;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var dateiname = (data.name || 'tour').replace(/[^a-zA-Z0-9_\-äöüÄÖÜß]/g, '_').replace(/_+/g,'_') + '.gpx';
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = dateiname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 200);
 }
 
 function swKlasse(s) {
@@ -831,7 +971,7 @@ function kmZuZahl(k) {
 // ════════════════════════════════════════════════════════════════
 // FILTER-STATE (pro Listenseite zurückgesetzt)
 // ════════════════════════════════════════════════════════════════
-var FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle' };
+var FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle', bezirk: 'alle' };
 
 function filterAnwenden(eintraege) {
   return eintraege.filter(function(n) {
@@ -852,6 +992,12 @@ function filterAnwenden(eintraege) {
       if (FILTER_STATE.km === 'mittel' && (kk <= 10 || kk > 25)) return false;
       if (FILTER_STATE.km === 'lang'   && kk <= 25) return false;
     }
+    if (FILTER_STATE.bezirk !== 'alle') {
+      // Tour wird einem Landkreis zugeordnet anhand des Startpunkts
+      // (erster Track-Punkt). Ist sie ausserhalb AK/NR/WW (z.B. WesterwaldSteig-
+      // Etappen in Hessen) -> tourBezirk() liefert null -> faellt durch.
+      if (tourBezirk(n) !== FILTER_STATE.bezirk) return false;
+    }
     return true;
   });
 }
@@ -868,7 +1014,7 @@ function pillRow(name, label, optionen) {
 }
 
 function filterUI() {
-  var anyAktiv = FILTER_STATE.sw !== 'alle' || FILTER_STATE.dauer !== 'alle' || FILTER_STATE.km !== 'alle';
+  var anyAktiv = FILTER_STATE.sw !== 'alle' || FILTER_STATE.dauer !== 'alle' || FILTER_STATE.km !== 'alle' || FILTER_STATE.bezirk !== 'alle';
   return '<div class="filter-leiste">'
     + '<div class="filter-titel">Filter'
       + (anyAktiv ? '<button class="reset-btn" onclick="resetFilter()">↺ Zurücksetzen</button>' : '')
@@ -891,6 +1037,16 @@ function filterUI() {
         {val:'mittel', label:'10 – 25 km'},
         {val:'lang',   label:'> 25 km'}
       ])
+    // Region-Filter: Tour wird per Point-in-Polygon dem Landkreis ihres
+    // Startpunkts zugeordnet (siehe tourBezirk()). Touren ausserhalb der drei
+    // Westerwaelder Kreise (z.B. WesterwaldSteig in Hessen) fallen aus jedem
+    // Bezirks-Filter heraus.
+    + pillRow('bezirk', 'Region', [
+        {val:'alle', label:'Alle'},
+        {val:'AK',   label:'Altenkirchen'},
+        {val:'NR',   label:'Neuwied'},
+        {val:'WW',   label:'Westerwald'}
+      ])
     + '</div>';
 }
 
@@ -902,7 +1058,7 @@ function setzeFilter(name, wert) {
   rerenderListe();
 }
 function resetFilter() {
-  FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle' };
+  FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle', bezirk: 'alle' };
   rerenderListe();
 }
 function rerenderListe() {
@@ -1047,7 +1203,7 @@ function baueListenEintrag(n, slug, detailTyp, inVorbereitung) {
 
 function renderEtappenListe(ziel, slug, info, zurueckSlug, detailTyp) {
   // Filter-State zurücksetzen bei jedem Aufruf
-  FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle' };
+  FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle', bezirk: 'alle' };
   window._aktuelleListe = { slug: slug, info: info, detailTyp: detailTyp };
 
   var daten = window[info.name];
@@ -1244,7 +1400,7 @@ function renderWwLit(ziel, slug, l) {
 // ════════════════════════════════════════════════════════════════
 
 // Termin-Filter-State (eigener State)
-var TERMIN_FILTER = { datum: 'alle', bezirk: 'alle', art: 'alle' };
+var TERMIN_FILTER = { datum: 'alle', bezirk: 'alle', art: 'alle', suche: '' };
 window._aktuelleTermine = null;
 
 function termineFilterUI() {
@@ -1254,6 +1410,15 @@ function termineFilterUI() {
       + 'onclick="setzeTerminFilter(\'' + group + '\',\'' + val + '\')">' + label + '</button>';
   }
   var html = '<div class="filter-leiste termine-filter">';
+  // SUCH-FELD: ganz oben, eigene Reihe. value steht aus TERMIN_FILTER.suche
+  // (damit die Suche beim Filter-Pillen-Wechsel nicht verloren geht).
+  html += '<div class="filter-gruppe filter-suche-gruppe">'
+    + '<input type="search" class="termine-such-input" '
+    +   'placeholder="🔍 Veranstaltung suchen…" '
+    +   'value="' + escapeHtml(TERMIN_FILTER.suche || '') + '" '
+    +   'oninput="setzeTermineSuche(this.value)" '
+    +   'autocomplete="off">'
+    + '</div>';
   html += '<div class="filter-gruppe"><span class="filter-label">📅 Datum:</span>'
     + pill('datum','alle','Alle')
     + pill('datum','heute','Heute')
@@ -1284,11 +1449,40 @@ function setzeTerminFilter(group, val) {
   TERMIN_FILTER[group] = val;
   var l = window._aktuelleTermine;
   if (!l) return;
+  // BEVOR das Filter-Wrap neu gebaut wird: Cursor im Such-Input merken.
+  var aktiv = document.activeElement;
+  var warSearch = aktiv && aktiv.classList && aktiv.classList.contains('termine-such-input');
+  var caretPos = warSearch && aktiv.selectionStart != null ? aktiv.selectionStart : 0;
   var wrap = document.getElementById('filter-leiste-wrapper');
   if (wrap) wrap.innerHTML = termineFilterUI();
   var liste = document.getElementById('termine-liste');
   if (liste) liste.innerHTML = baueTermineListe(l.slug, l.info);
   aktualisiereTermineTreffer(l);
+  if (warSearch && wrap) {
+    var neu = wrap.querySelector('.termine-such-input');
+    if (neu) {
+      neu.focus();
+      try { neu.setSelectionRange(caretPos, caretPos); } catch (e) {}
+    }
+  }
+}
+
+// Suche bei Veranstaltungen: identisches Debounce-Pattern wie bei
+// setzeGefiltertSuche, damit der Tipp-Flow nicht stockt und der Fokus
+// nicht verlorengeht.
+var _termineSucheTimer = null;
+function setzeTermineSuche(val) {
+  TERMIN_FILTER.suche = val || '';
+  if (_termineSucheTimer) clearTimeout(_termineSucheTimer);
+  _termineSucheTimer = setTimeout(function() {
+    var l = window._aktuelleTermine;
+    if (!l) return;
+    // NUR die Liste neu rendern -- das Filter-Wrap bleibt unangetastet,
+    // sodass das Such-Input seinen Fokus behaelt.
+    var liste = document.getElementById('termine-liste');
+    if (liste) liste.innerHTML = baueTermineListe(l.slug, l.info);
+    aktualisiereTermineTreffer(l);
+  }, 150);
 }
 
 function termineFilterAnwenden(items) {
@@ -1346,6 +1540,18 @@ function termineFilterAnwenden(items) {
       if (TERMIN_FILTER.art === 'lit'      && !istLit)   return false;
       if (TERMIN_FILTER.art === 'natur'    && !istNatur) return false;
       if (TERMIN_FILTER.art === 'sonstige' && (istLit || istNatur)) return false;
+    }
+    // Volltextsuche ueber Titel, Ort und Beschreibung -- case-insensitive,
+    // Leerzeichen-tolerant. Wird zuletzt geprueft, weil sie typisch
+    // restriktiver ist als die Pillen-Filter.
+    if (TERMIN_FILTER.suche) {
+      var suche = TERMIN_FILTER.suche.toLowerCase().trim();
+      if (suche) {
+        var blob = ((item.titel || item.name || '') + ' '
+                  + (item.ort || '') + ' '
+                  + (item.beschreibung || item.description || '')).toLowerCase();
+        if (blob.indexOf(suche) < 0) return false;
+      }
     }
     return true;
   });
@@ -1435,7 +1641,7 @@ function aktualisiereTermineTreffer(l) {
 }
 
 function renderTermine(ziel, slug, l) {
-  TERMIN_FILTER = { datum: 'alle', bezirk: 'alle', kids: 'alle' };
+  TERMIN_FILTER = { datum: 'alle', bezirk: 'alle', art: 'alle', suche: '' };
   window._aktuelleTermine = { slug: slug, info: l };
 
   // Einmaliges Deduplizieren bei erstem Aufruf — schützt vor Mehrfach-Laden
@@ -1602,8 +1808,8 @@ function renderDetail(ziel, typ, schluessel, zurueckOverride) {
   if (typ === 'wandern' || typ === 'rad')      renderRouteDetail(ziel, item, info, zurueck);
   else if (typ === 'ausfl')                    renderAusflDetail(ziel, item, info, zurueck);
   else if (typ === 'badesee')                  renderBadeseeDetail(ziel, item, info, zurueck);
-  else if (typ === 'unterkunft')               renderUnterkunftDetail(ziel, item, info, zurueck);
-  else if (typ === 'gastronomie')              renderUnterkunftDetail(ziel, item, info, zurueck);
+  else if (typ === 'unterkunft')               renderUnterkunftDetail(ziel, item, info, zurueck, 'unterkunft');
+  else if (typ === 'gastronomie')              renderUnterkunftDetail(ziel, item, info, zurueck, 'gastronomie');
   else if (typ === 'museum')                   renderMuseumDetail(ziel, item, info, zurueck);
   else if (typ === 'literatur')                renderAusflDetail(ziel, item, info, zurueck);
   else if (typ === 'event')                    renderTerminDetail(ziel, item, info, zurueck);
@@ -2093,10 +2299,26 @@ function renderRouteDetail(ziel, item, info, zurueck) {
   var hatInlineTrack = !!(item._track && item._track.length);
   var hatBild = !!item._bild;
 
+  // Aktive Tour fuer den GPX-Download-Fallback merken (wird vom onclick-Handler
+  // downloadAktiveTourAlsGpx() ausgelesen, sobald der Nutzer den Button klickt).
+  if (hatInlineTrack) {
+    window._aktiveTourGpx = { track: item._track, name: n.titel || item.title || 'Tour' };
+  } else {
+    window._aktiveTourGpx = null;
+  }
+
   // STICKY HEADER: nav + intro + Etappentitel + Schwierigkeit/GPX/Karte/Foto
   var stickyTopRow = '<div class="diff-gpx-row">';
-  if (n.schwierigkeit) stickyTopRow += '<span class="diff-pill ' + diffBg + '">' + escapeHtml(n.schwierigkeit) + '</span>';
-  if (n.gpxUrl) stickyTopRow += '<a class="btn-action btn-gpx" href="' + n.gpxUrl + '" target="_blank" rel="noopener">📥 GPX</a>';
+  if (n.schwierigkeit) stickyTopRow += '<span class="diff-pill ' + diffBg + '\">' + escapeHtml(n.schwierigkeit) + '</span>';
+  // GPX-Button:
+  //  1) direkter Link wenn n.gpxUrl gesetzt ist (z.B. Tourenplaner-RLP-Download)
+  //  2) sonst Fallback: aus inline-Track clientseitig GPX-XML generieren
+  //  3) sonst gar kein Button (weder URL noch Track verfuegbar)
+  if (n.gpxUrl) {
+    stickyTopRow += '<a class="btn-action btn-gpx" href="' + n.gpxUrl + '" target="_blank" rel="noopener" download>📥 GPX</a>';
+  } else if (hatInlineTrack) {
+    stickyTopRow += '<button type="button" class="btn-action btn-gpx" onclick="downloadAktiveTourAlsGpx()">📥 GPX</button>';
+  }
   // Karte intern (Leaflet + GPX/Marker/inline-Track) — anzeigen wenn
   // GPX, Start/Ziel-Daten ODER inline-Track vorhanden sind
   if (info.karteUrl && (n.gpxUrl || item.start || item.destination || hatInlineTrack)) {
@@ -2263,10 +2485,11 @@ function renderBadeseeDetail(ziel, item, info, zurueck) {
 }
 
 // === Unterkunft ===
-function renderUnterkunftDetail(ziel, item, info, zurueck) {
+function renderUnterkunftDetail(ziel, item, info, zurueck, typ) {
   // Eindeutige IDs fuer die Foto-Sektion (Toggle ueber den Foto-Button)
   var fotoSecId = 'foto-sec-' + Math.random().toString(36).slice(2);
   var hatBild = !!item._bild;
+  var istUnterkunft = (typ === 'unterkunft');
 
   var html = navBar(zurueck, info.breadcrumb)
     + intro(info.titel, '')
@@ -2284,6 +2507,25 @@ function renderUnterkunftDetail(ziel, item, info, zurueck) {
   }
   if (hatBild) {
     tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="toggleTourFoto(\'' + fotoSecId + '\', this)">📷 Foto</button>';
+    hatTags = true;
+  }
+  // Verfuegbarkeit-Button nur bei Unterkuenften (nicht bei Gastronomie).
+  // DataHub liefert die Feratel-UUID im identifier-Array mit, wir bauen daraus
+  // einen Deep-Link direkt zur einzelnen TOSC5-Buchungsseite auf westerwald.info.
+  // Die App oeffnet diese in einem iFrame (eigener Renderer renderUnterkunftBuchung),
+  // damit der Nutzer nicht aus der App geworfen wird.
+  if (istUnterkunft) {
+    if (item.feratelUuid) {
+      // Slug aus dem Namen ableiten falls keiner mitgeliefert -- TOSC5 ignoriert ihn
+      // ohnehin und routet ueber die UUID.
+      var slugFuerUrl = item.slug || item.name.toLowerCase()
+        .replace(/[äöüß]/g, function(c) { return {'ä':'ae','ö':'oe','ü':'ue','ß':'ss'}[c]; })
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      tagRow += '<a class="btn-action btn-gpx" href="#unterkunft-buchen/' + encodeURIComponent(item.feratelUuid) + '/' + encodeURIComponent(slugFuerUrl) + '" title="Verfügbarkeit auf westerwald.info pruefen">🛏️ Verfügbarkeit prüfen</a>';
+    } else {
+      // Fallback: keine Feratel-UUID -> WWTS-Liste, Nutzer sucht selbst
+      tagRow += '<a class="btn-action btn-gpx" href="https://www.westerwald.info/tosc5/unterkuenfte?limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6" target="_blank" rel="noopener" title="Auf westerwald.info suchen">🛏️ Verfügbarkeit prüfen</a>';
+    }
     hatTags = true;
   }
   tagRow += '</div>';
@@ -2391,16 +2633,45 @@ function setzeGefiltertFilter(group, key) {
   GEFILTERT_STATE[group] = key;
   refreshGefiltertView();
 }
+var _gefiltertSucheTimer = null;
 function setzeGefiltertSuche(val) {
   GEFILTERT_STATE.suche = val || '';
-  refreshGefiltertView();
+  // Debounce: Re-Render erst nach kurzer Tipp-Pause (150 ms). Sonst blockiert
+  // eine Live-Liste mit 1.500+ Eintraegen den Hauptthread bei jedem Buchstaben
+  // und der Tipp-Flow stockt.
+  if (_gefiltertSucheTimer) clearTimeout(_gefiltertSucheTimer);
+  _gefiltertSucheTimer = setTimeout(function() {
+    refreshGefiltertListe();
+  }, 150);
 }
+
 function refreshGefiltertView() {
   var ctx = window._aktuelleGefiltert;
   if (!ctx) return;
-  // Nur das Filter-Wrapper und die Liste neu rendern, nicht die ganze Seite
+  // BEVOR das Filter-Wrap neu gebaut wird: aktuelle Cursorposition im
+  // Such-Input merken, danach Fokus wiederherstellen (Belt-and-Braces,
+  // falls ein anderer Codepfad doch diesen Render ausloest).
+  var aktiv = document.activeElement;
+  var warSearch = aktiv && aktiv.classList && aktiv.classList.contains('filter-such-input');
+  var caretPos = 0;
+  if (warSearch && aktiv.selectionStart != null) caretPos = aktiv.selectionStart;
+
   var filterWrap = document.getElementById('gefiltert-filter-wrap');
   if (filterWrap) filterWrap.innerHTML = gefiltertFilterUI(ctx.info);
+  refreshGefiltertListe();
+
+  if (warSearch && filterWrap) {
+    var neu = filterWrap.querySelector('.filter-such-input');
+    if (neu) {
+      neu.focus();
+      try { neu.setSelectionRange(caretPos, caretPos); } catch (e) {}
+    }
+  }
+}
+
+function refreshGefiltertListe() {
+  var ctx = window._aktuelleGefiltert;
+  if (!ctx) return;
   var listenEl = document.getElementById('gefiltert-liste');
   if (listenEl) {
     var html = baueGefiltertListe(ctx.slug, ctx.info);
@@ -2459,10 +2730,11 @@ function baueGefiltertListe(slug, l) {
     }
     var meta = [];
     if (ort) meta.push('📍 ' + escapeHtml(ort));
-    if (thema && thema !== typLabel) meta.push(escapeHtml(thema));
+    // 'thema' (z.B. "kultur", "fewo", "hotel") ist redundant zur Pille
+    // ("Kultur & Historie") und wird deshalb NICHT mehr angezeigt.
     return '<button class="eintrag" onclick="navigateTo(\'detail/' + l.detailKey + '/' + slug + '_' + idx + '\')">'
-      + (typLabel ? '<div class="eintrag-typ-badge">' + escapeHtml(typLabel) + '</div>' : '')
       + '<div class="eintrag-text">'
+        + (typLabel ? '<div class="eintrag-typ-badge">' + escapeHtml(typLabel) + '</div>' : '')
         + '<div class="eintrag-titel">' + escapeHtml(titel) + '</div>'
         + (meta.length ? '<div class="eintrag-meta">' + meta.join(' · ') + '</div>' : '')
       + '</div>'
@@ -4556,7 +4828,10 @@ function _wandern_konvertiereEine(t) {
     // Verweise / Identifikation
     sourceUrl:        t.url || '',
     tourenplanerUrl:  t.url || '',
-    gpxUrl:           null,               // wir nutzen den inline-Track
+    // GPX-URL aus Tourenplaner-URL ableiten (z.B. .../tour/12345 -> download.tour.gpx?i=12345).
+    // Falls das nicht klappt, faellt der Detail-Renderer auf eine clientseitig aus _track
+    // generierte GPX-Datei zurueck (Blob-Download).
+    gpxUrl:           gpxAusTourenplaner(t.url) || null,
 
     // Zusatz fuer Karte / Bild (vom Detail-Renderer evtl. ignoriert,
     // aber fuer eine spaetere Map-Verbesserung schon mitgereicht)
@@ -4822,6 +5097,7 @@ function _unterkuenfte_konvertiereEine(u) {
   return {
     id:          u.id,
     slug:        u.slug,
+    feratelUuid: u.feratelUuid || '',
     name:        u.name,
     categories:  u.categories || [],
     features:    u.features || [],
@@ -5497,4 +5773,42 @@ function initVeranstaltungenKarte(mapId, mitGeo, state) {
       onFehler: function() { state.standortGefragt = true; }
     });
   }
+}
+
+
+// ════════════════════════════════════════════════════════════════════════
+// UNTERKUNFT-BUCHUNG (iFrame zu westerwald.info/tosc5)
+// Oeffnet die TOSC5-Buchungsseite einer Unterkunft direkt in der App.
+// Manche Browser blockieren TOSC5 in iFrames (X-Frame-Options/CSP) -- in
+// dem Fall sieht der Nutzer den Fallback-Link.
+// ════════════════════════════════════════════════════════════════════════
+function renderUnterkunftBuchung(ziel, feratelUuid, slug) {
+  if (!feratelUuid) {
+    ziel.innerHTML = navBar('home', '<strong>Verfügbarkeit</strong>')
+      + '<div class="hinweis">Keine Buchungs-ID hinterlegt.</div>';
+    return;
+  }
+  // TOSC5-URL exakt nach dem Beispiel von westerwald.info:
+  //   #/unterkuenfte/RPT/{feratelUuid}/{slug}?useDetailSearch=false
+  // RPT = Datenbankcode der WWTS-Deskline-Instanz, der Hash-Anteil sorgt
+  // dafuer dass TOSC5 direkt die Detail-/Buchungs-Ansicht oeffnet.
+  var tosc5Url = 'https://www.westerwald.info/tosc5/unterkuenfte'
+    + '?limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6'
+    + '#/unterkuenfte/RPT/' + encodeURIComponent(feratelUuid)
+    + (slug ? '/' + encodeURIComponent(slug) : '')
+    + '?useDetailSearch=false';
+
+  ziel.innerHTML =
+    navBar('back', 'Unterkünfte › <strong>Verfügbarkeit prüfen</strong>')
+    + '<div class="buchung-iframe-wrap">'
+    +   '<iframe class="buchung-iframe" src="' + escapeHtml(tosc5Url) + '" '
+    +     'title="Verfügbarkeit prüfen" '
+    +     'allow="payment" '
+    +     'referrerpolicy="no-referrer-when-downgrade"></iframe>'
+    +   '<div class="buchung-fallback">'
+    +     'Falls die Buchungsseite oben nicht angezeigt wird, '
+    +     '<a href="' + escapeHtml(tosc5Url) + '" target="_blank" rel="noopener">hier im neuen Tab öffnen</a>.'
+    +   '</div>'
+    + '</div>'
+    + '<div class="spacer"></div>';
 }
