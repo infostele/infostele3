@@ -2459,7 +2459,6 @@ function renderBadeseeDetail(ziel, item, info, zurueck) {
     window._aktiveBilder = _bilderListe;
     var _fotoLabel = _bilderListe.length > 1 ? '📷 Fotos (' + _bilderListe.length + ')' : '📷 Foto';
     tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="oeffneAktiveSlideshow()">' + _fotoLabel + '</button>';
-    hatTags = true;
   }
   tagRow += '</div>';
   html += tagRow;
@@ -5869,15 +5868,14 @@ function renderUnterkunftBuchung(ziel, feratelUuid, slug) {
 
   ziel.innerHTML =
     navBar('back', 'Verfügbarkeit')
-    + '<div class="buchung-tipp">'
-    +   '💡 <strong>Tipp:</strong> Wenn der Kalender beim Datum-Klick alles verdeckt, '
-    +   '<a href="' + escapeHtml(tosc5Url) + '" target="_blank" rel="noopener">öffne die Seite im neuen Tab</a> – dort hast Du den vollen Bildschirm zur Verfügung.'
-    + '</div>'
     + '<div class="buchung-iframe-wrap">'
     +   '<iframe class="buchung-iframe" src="' + escapeHtml(tosc5Url) + '" '
     +     'title="Verfügbarkeit prüfen" '
     +     'allow="payment" '
     +     'referrerpolicy="no-referrer-when-downgrade"></iframe>'
+    +   '<a class="buchung-neuer-tab" href="' + escapeHtml(tosc5Url) + '" '
+    +     'target="_blank" rel="noopener" '
+    +     'title="Im neuen Tab öffnen – dort hast Du den vollen Bildschirm">↗ Vollbild</a>'
     + '</div>';
 }
 
