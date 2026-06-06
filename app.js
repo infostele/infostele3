@@ -1847,6 +1847,15 @@ function renderTerminDetail(ziel, item, info, zurueck) {
   if (hatVerortbareInfo(item) && info.karteUrl) {
     pills += '<a class="btn-action outline" href="' + info.karteUrl + '">🗺️ Karte</a>';
   }
+  // Foto(s)-Button -> Slideshow. Veranstaltungen haben oft mehrere Bilder.
+  var _bilderEv = (item.bilder && item.bilder.length)
+    ? item.bilder
+    : (item.bild ? [{url: item.bild, autor: item.bildUrheber || '', lizenz: item.bildLizenz || '', caption: ''}] : []);
+  if (_bilderEv.length) {
+    window._aktiveBilder = _bilderEv;
+    var _fotoLabelEv = _bilderEv.length > 1 ? '📷 Fotos (' + _bilderEv.length + ')' : '📷 Foto';
+    pills += '<button type="button" class="btn-action outline btn-foto" onclick="oeffneAktiveSlideshow()">' + _fotoLabelEv + '</button>';
+  }
   pills += '</div>';
 
   var html = '<div class="sticky-detail">'
@@ -2326,9 +2335,15 @@ function renderRouteDetail(ziel, item, info, zurueck) {
   } else if (n.tourenplanerUrl) {
     stickyTopRow += '<a class="btn-action outline" href="' + n.tourenplanerUrl + '" target="_blank" rel="noopener">🗺️ Karte</a>';
   }
-  // Foto-Button: nur wenn ein Bild zur Tour gepflegt ist
-  if (hatBild) {
-    stickyTopRow += '<button type="button" class="btn-action outline btn-foto" onclick="toggleTourFoto(\'' + fotoSecId + '\', this)">📷 Foto</button>';
+  // Foto(s)-Button: oeffnet Slideshow mit allen verfuegbaren Bildern dieser
+  // Tour. window._aktiveBilder wird gesetzt, der onclick liest es aus.
+  var bilderListe = (item._bilder && item._bilder.length)
+    ? item._bilder
+    : (hatBild ? [{url: item._bild, autor: item._bildUrheber, lizenz: item._bildLizenz, caption: ''}] : []);
+  if (bilderListe.length) {
+    window._aktiveBilder = bilderListe;
+    var label = bilderListe.length > 1 ? '📷 Fotos (' + bilderListe.length + ')' : '📷 Foto';
+    stickyTopRow += '<button type="button" class="btn-action outline btn-foto" onclick="oeffneAktiveSlideshow()">' + label + '</button>';
   }
   stickyTopRow += '</div>';
 
@@ -2436,8 +2451,15 @@ function renderBadeseeDetail(ziel, item, info, zurueck) {
   if (hatVerortbareInfo(item) && info.karteUrl) {
     tagRow += '<a class="btn-action outline" href="' + info.karteUrl + '">🗺️ Karte</a>';
   }
-  if (hatBild) {
-    tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="toggleTourFoto(\'' + fotoSecId + '\', this)">📷 Foto</button>';
+  // Foto(s)-Button -> Slideshow mit allen verfuegbaren Bildern
+  var _bilderListe = (item._bilder && item._bilder.length)
+    ? item._bilder
+    : (hatBild ? [{url: item._bild, autor: item._bildUrheber, lizenz: item._bildLizenz, caption: ''}] : []);
+  if (_bilderListe.length) {
+    window._aktiveBilder = _bilderListe;
+    var _fotoLabel = _bilderListe.length > 1 ? '📷 Fotos (' + _bilderListe.length + ')' : '📷 Foto';
+    tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="oeffneAktiveSlideshow()">' + _fotoLabel + '</button>';
+    hatTags = true;
   }
   tagRow += '</div>';
   html += tagRow;
@@ -2505,8 +2527,14 @@ function renderUnterkunftDetail(ziel, item, info, zurueck, typ) {
     tagRow += '<a class="btn-action outline" href="' + info.karteUrl + '">🗺️ Karte</a>';
     hatTags = true;
   }
-  if (hatBild) {
-    tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="toggleTourFoto(\'' + fotoSecId + '\', this)">📷 Foto</button>';
+  // Foto(s)-Button -> Slideshow mit allen verfuegbaren Bildern
+  var _bilderListeU = (item._bilder && item._bilder.length)
+    ? item._bilder
+    : (hatBild ? [{url: item._bild, autor: item._bildUrheber, lizenz: item._bildLizenz, caption: ''}] : []);
+  if (_bilderListeU.length) {
+    window._aktiveBilder = _bilderListeU;
+    var _fotoLabelU = _bilderListeU.length > 1 ? '📷 Fotos (' + _bilderListeU.length + ')' : '📷 Foto';
+    tagRow += '<button type="button" class="btn-action outline btn-foto" onclick="oeffneAktiveSlideshow()">' + _fotoLabelU + '</button>';
     hatTags = true;
   }
   // Verfuegbarkeit-Button nur bei Unterkuenften (nicht bei Gastronomie).
@@ -2719,8 +2747,14 @@ function baueGefiltertListe(slug, l) {
   var html = gefiltert.map(function(item) {
     var idx = rohdaten.indexOf(item);
     var titel = item.name || 'Eintrag';
-    var ort = item.town || (item.contact && item.contact.town) || '';
-    var thema = item.topic || item.mainTopic || gefiltertItemTyp(item, l) || '';
+    // Ort + PLZ direkt aus den DataHub-Feldern. item.town ist ein Legacy-
+    // Fallback aus statischen Daten und sollte sonst nicht mehr genutzt sein.
+    var ort = item.ort || item.town || (item.contact && item.contact.town) || '';
+    var plz = item.plz || '';
+    var ortLine = '';
+    if (plz && ort) ortLine = plz + ' ' + ort;
+    else if (plz)   ortLine = plz;
+    else if (ort)   ortLine = ort;
     var typLabel = '';
     if (l.filterTypen && l.typErkenner) {
       var tk = gefiltertItemTyp(item, l);
@@ -2728,15 +2762,11 @@ function baueGefiltertListe(slug, l) {
         if (l.filterTypen[i].key === tk && tk !== 'alle') { typLabel = l.filterTypen[i].label; break; }
       }
     }
-    var meta = [];
-    if (ort) meta.push('📍 ' + escapeHtml(ort));
-    // 'thema' (z.B. "kultur", "fewo", "hotel") ist redundant zur Pille
-    // ("Kultur & Historie") und wird deshalb NICHT mehr angezeigt.
     return '<button class="eintrag" onclick="navigateTo(\'detail/' + l.detailKey + '/' + slug + '_' + idx + '\')">'
       + '<div class="eintrag-text">'
         + (typLabel ? '<div class="eintrag-typ-badge">' + escapeHtml(typLabel) + '</div>' : '')
         + '<div class="eintrag-titel">' + escapeHtml(titel) + '</div>'
-        + (meta.length ? '<div class="eintrag-meta">' + meta.join(' · ') + '</div>' : '')
+        + (ortLine ? '<div class="eintrag-ort">' + escapeHtml(ortLine) + '</div>' : '')
       + '</div>'
       + '<div class="eintrag-pfeil">&rsaquo;</div>'
     + '</button>';
@@ -4840,6 +4870,7 @@ function _wandern_konvertiereEine(t) {
     _id:           t.id,
     _bild:         t.bild,
     _thumb:        t.thumb,
+    _bilder:       t.bilder || [],
     _bildLizenz:   t.bildLizenz,
     _bildUrheber:  t.bildUrheber,
     _etappeNr:     etappeNr,
@@ -5076,6 +5107,7 @@ function _pois_konvertiereEine(p) {
     // Foto-Button-Felder (analog Wandertouren)
     _bild:        p.bild || '',
     _thumb:       p.thumb || '',
+    _bilder:      p.bilder || [],
     _bildLizenz:  p.bildLizenz || '',
     _bildUrheber: p.bildUrheber || ''
   };
@@ -5110,6 +5142,7 @@ function _unterkuenfte_konvertiereEine(u) {
     contact:     u.contact || { phone: '', email: '', url: '' },
     _bild:        u.bild || '',
     _thumb:       u.thumb || '',
+    _bilder:      u.bilder || [],
     _bildLizenz:  u.bildLizenz || '',
     _bildUrheber: u.bildUrheber || ''
   };
@@ -5414,19 +5447,37 @@ function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
     markerGroup.clearLayers();
     var aktivTyp = state.typ;
     var aktivBez = state.bezirk;
-    var hatTypOpts = (info.filterTypen && info.filterTypen.length);
-    var hatBezOpts = (info.filterBezirke && info.filterBezirke.length);
-    var typFilterAktiv = Object.keys(aktivTyp).length > 0 && hatTypOpts;
-    var bezFilterAktiv = Object.keys(aktivBez).length > 0 && hatBezOpts;
+    var hatTypOpts = !!(info.filterTypen && info.filterTypen.length);
+    var hatBezOpts = !!(info.filterBezirke && info.filterBezirke.length);
+
+    // Anzahl waehlbarer Optionen pro Gruppe (ohne pseudo-Key 'alle')
+    var typOptsCount = 0, bezOptsCount = 0;
+    if (hatTypOpts) {
+      for (var ti = 0; ti < info.filterTypen.length; ti++) {
+        if (info.filterTypen[ti].key !== 'alle') typOptsCount++;
+      }
+    }
+    if (hatBezOpts) {
+      for (var bi = 0; bi < info.filterBezirke.length; bi++) {
+        if (info.filterBezirke[bi].key !== 'alle') bezOptsCount++;
+      }
+    }
+
+    var typAktivCount = Object.keys(aktivTyp).length;
+    var bezAktivCount = Object.keys(aktivBez).length;
+    // Filter ist nur "echt aktiv" wenn 1..(n-1) Checkboxen gesetzt sind --
+    // wenn ALLE gesetzt sind, soll das wie "kein Filter" wirken (also auch
+    // Items ohne zugeordneten Typ/Bezirk werden gezeigt). Sonst kann die
+    // Summe auf der Karte nie die Liste erreichen.
+    var typFilterAktiv = typAktivCount > 0 && typAktivCount < typOptsCount;
+    var bezFilterAktiv = bezAktivCount > 0 && bezAktivCount < bezOptsCount;
+    // Wenigstens EINE Checkbox aktiv? (Sonst leere Karte)
+    var irgendeinFilterGesetzt = typAktivCount > 0 || bezAktivCount > 0;
 
     var zaehlEl = document.getElementById(mapId + '-zaehler');
 
-    // NEUE LOGIK: Wenn KEIN Filter aktiviert ist, keine Marker zeigen.
-    // Erst wenn der Nutzer mindestens eine Checkbox aktiviert, werden Treffer angezeigt.
-    if (!typFilterAktiv && !bezFilterAktiv) {
+    if (!irgendeinFilterGesetzt) {
       if (zaehlEl) zaehlEl.textContent = '0 Einträge angezeigt – bitte Filter aktivieren';
-      // Karte bei initialem Aufruf trotzdem auf die Region zoomen, damit man sieht wo
-      // sie liegt -- die Landkreis-Polygone sind ja schon eingezeichnet
       if (!map._listenKarteBoundsGesetzt) {
         map.setView([50.55, 7.65], 9);
         map._listenKarteBoundsGesetzt = true;
@@ -5457,13 +5508,17 @@ function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
       gezeigt++;
     }
 
-    // Beim ersten Mal mit Treffer-Markern: Bounds setzen
     if (bounds.length && !map._listenKarteBoundsGesetzt) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
       map._listenKarteBoundsGesetzt = true;
     }
     if (zaehlEl) {
-      zaehlEl.textContent = gezeigt + ' Einträge angezeigt';
+      // Praeziser Zaehler: zeigt was sichtbar ist UND was wegen fehlender
+      // Geo-Koordinaten gar nicht erst auf die Karte konnte.
+      var gesamt = mitGeo.length + ohneGeoCount;
+      var txt = gezeigt + ' von ' + gesamt + ' angezeigt';
+      if (ohneGeoCount > 0) txt += ' · ' + ohneGeoCount + ' ohne Geo-Daten (nicht kartierbar)';
+      zaehlEl.textContent = txt;
     }
   }
 
@@ -5694,13 +5749,27 @@ function initVeranstaltungenKarte(mapId, mitGeo, state) {
     var aktivDatum = state.datum;
     var aktivBezirk = state.bezirk;
     var aktivArt = state.art;
-    var datumAktiv = Object.keys(aktivDatum).length > 0;
-    var bezirkAktiv = Object.keys(aktivBezirk).length > 0;
-    var artAktiv = Object.keys(aktivArt).length > 0;
+    var datumKeys = Object.keys(aktivDatum);
+    var bezirkKeys = Object.keys(aktivBezirk);
+    var artKeys = Object.keys(aktivArt);
+
+    // Anzahl waehlbarer Optionen pro Gruppe (siehe renderVeranstaltungenKarte)
+    var datumOptsCount = 5;   // heute, woche, monat, jahr, dauer
+    var bezirkOptsCount = 5;  // AK, NR, WW, Hessen, NRW
+    var artOptsCount = 3;     // lit, natur, sonstige
+
+    // Filter "echt aktiv" nur wenn 1..(n-1) gesetzt sind. Bei n von n
+    // Checkboxes behandeln wir das wie "kein Filter" -> alle anzeigen,
+    // inkl. Events ohne zugeordneten Bezirk/ohne Quelle. So kann die
+    // Karte ihre Summe maximieren.
+    var datumFilterAktiv  = datumKeys.length  > 0 && datumKeys.length  < datumOptsCount;
+    var bezirkFilterAktiv = bezirkKeys.length > 0 && bezirkKeys.length < bezirkOptsCount;
+    var artFilterAktiv    = artKeys.length    > 0 && artKeys.length    < artOptsCount;
+    var irgendwasAktiv    = datumKeys.length > 0 || bezirkKeys.length > 0 || artKeys.length > 0;
+
     var zaehlEl = document.getElementById(mapId + '-zaehler');
 
-    // Initial alle Filter leer -> keine Marker
-    if (!datumAktiv && !bezirkAktiv && !artAktiv) {
+    if (!irgendwasAktiv) {
       if (zaehlEl) zaehlEl.textContent = '0 Veranstaltungen angezeigt – bitte Filter aktivieren';
       if (!map._listenKarteBoundsGesetzt) {
         map.setView([50.55, 7.65], 9);
@@ -5709,16 +5778,15 @@ function initVeranstaltungenKarte(mapId, mitGeo, state) {
       return;
     }
 
-    var datumKeys = Object.keys(aktivDatum);
     var bounds = [];
     var gezeigt = 0;
 
     for (var n = 0; n < mitGeo.length; n++) {
       var e = mitGeo[n];
       var ev = e._orig;
-      if (datumAktiv && !eventPasstZuDatum(ev, datumKeys)) continue;
-      if (bezirkAktiv && !aktivBezirk[ev.bezirk || '']) continue;
-      if (artAktiv) {
+      if (datumFilterAktiv && !eventPasstZuDatum(ev, datumKeys)) continue;
+      if (bezirkFilterAktiv && !aktivBezirk[ev.bezirk || '']) continue;
+      if (artFilterAktiv) {
         var artK = ev.quelle === 'lit' ? 'lit' : (ev.quelle === 'natur' ? 'natur' : 'sonstige');
         if (!aktivArt[artK]) continue;
       }
@@ -5740,7 +5808,12 @@ function initVeranstaltungenKarte(mapId, mitGeo, state) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
       map._listenKarteBoundsGesetzt = true;
     }
-    if (zaehlEl) zaehlEl.textContent = gezeigt + ' Veranstaltungen angezeigt';
+    if (zaehlEl) {
+      var gesamt = mitGeo.length + ohneGeoCount;
+      var txt = gezeigt + ' von ' + gesamt + ' angezeigt';
+      if (ohneGeoCount > 0) txt += ' · ' + ohneGeoCount + ' ohne Geo-Daten (nicht kartierbar)';
+      zaehlEl.textContent = txt;
+    }
   }
 
   // Event-Listener fuer Filter-Checkboxen
@@ -5788,10 +5861,6 @@ function renderUnterkunftBuchung(ziel, feratelUuid, slug) {
       + '<div class="hinweis">Keine Buchungs-ID hinterlegt.</div>';
     return;
   }
-  // TOSC5-URL exakt nach dem Beispiel von westerwald.info:
-  //   #/unterkuenfte/RPT/{feratelUuid}/{slug}?useDetailSearch=false
-  // RPT = Datenbankcode der WWTS-Deskline-Instanz, der Hash-Anteil sorgt
-  // dafuer dass TOSC5 direkt die Detail-/Buchungs-Ansicht oeffnet.
   var tosc5Url = 'https://www.westerwald.info/tosc5/unterkuenfte'
     + '?limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6'
     + '#/unterkuenfte/RPT/' + encodeURIComponent(feratelUuid)
@@ -5799,16 +5868,130 @@ function renderUnterkunftBuchung(ziel, feratelUuid, slug) {
     + '?useDetailSearch=false';
 
   ziel.innerHTML =
-    navBar('back', 'Unterkünfte › <strong>Verfügbarkeit prüfen</strong>')
+    navBar('back', 'Verfügbarkeit')
+    + '<div class="buchung-tipp">'
+    +   '💡 <strong>Tipp:</strong> Wenn der Kalender beim Datum-Klick alles verdeckt, '
+    +   '<a href="' + escapeHtml(tosc5Url) + '" target="_blank" rel="noopener">öffne die Seite im neuen Tab</a> – dort hast Du den vollen Bildschirm zur Verfügung.'
+    + '</div>'
     + '<div class="buchung-iframe-wrap">'
     +   '<iframe class="buchung-iframe" src="' + escapeHtml(tosc5Url) + '" '
     +     'title="Verfügbarkeit prüfen" '
     +     'allow="payment" '
     +     'referrerpolicy="no-referrer-when-downgrade"></iframe>'
-    +   '<div class="buchung-fallback">'
-    +     'Falls die Buchungsseite oben nicht angezeigt wird, '
-    +     '<a href="' + escapeHtml(tosc5Url) + '" target="_blank" rel="noopener">hier im neuen Tab öffnen</a>.'
-    +   '</div>'
+    + '</div>';
+}
+
+
+// ════════════════════════════════════════════════════════════════════════
+// SLIDESHOW: Modal-Overlay mit Vor/Zurück, Counter, Caption, ESC schliesst.
+// Wird ueberall benutzt wo ein Item mehrere Bilder hat (Unterkuenfte,
+// Ausflugsziele, Wandern/Rad-Etappen, Veranstaltungen).
+// Bilder kommen aus item._bilder = [{url, autor, lizenz, caption}, ...]
+// ════════════════════════════════════════════════════════════════════════
+function oeffneSlideshow(bilder, startIdx) {
+  if (!bilder || !bilder.length) return;
+  startIdx = (typeof startIdx === 'number' && startIdx >= 0 && startIdx < bilder.length) ? startIdx : 0;
+  window._slideshowState = { bilder: bilder, idx: startIdx };
+
+  // Falls noch eine Slideshow offen ist: erst schliessen
+  var alt = document.getElementById('slideshow-overlay');
+  if (alt) alt.parentNode.removeChild(alt);
+
+  var ov = document.createElement('div');
+  ov.id = 'slideshow-overlay';
+  ov.className = 'slideshow-overlay';
+  ov.innerHTML =
+    '<div class="slideshow-top-bar">'
+    +   '<div class="slideshow-counter" id="slideshow-counter"></div>'
+    +   '<button type="button" class="slideshow-close" onclick="schliesseSlideshow()" aria-label="Schließen">×</button>'
     + '</div>'
-    + '<div class="spacer"></div>';
+    + '<div class="slideshow-bild-wrap">'
+    +   '<button type="button" class="slideshow-nav slideshow-prev" onclick="slideshowPrev()" aria-label="Vorheriges Bild">‹</button>'
+    +   '<img class="slideshow-bild" id="slideshow-bild" alt="">'
+    +   '<button type="button" class="slideshow-nav slideshow-next" onclick="slideshowNext()" aria-label="Nächstes Bild">›</button>'
+    + '</div>'
+    + '<div class="slideshow-caption" id="slideshow-caption"></div>';
+  document.body.appendChild(ov);
+  document.body.classList.add('slideshow-aktiv');   // verhindert Body-Scroll
+
+  // Klick auf Hintergrund (nicht auf Bild/Buttons) schliesst
+  ov.addEventListener('click', function(e) {
+    if (e.target === ov || e.target.classList.contains('slideshow-bild-wrap')) {
+      schliesseSlideshow();
+    }
+  });
+  // ESC / Pfeiltasten
+  document.addEventListener('keydown', _slideshowKeyHandler);
+  // Touch-Swipe (links/rechts) fuer Mobile
+  var touchStartX = 0;
+  ov.addEventListener('touchstart', function(e) {
+    touchStartX = e.changedTouches[0].clientX;
+  });
+  ov.addEventListener('touchend', function(e) {
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 40) {
+      if (dx < 0) slideshowNext(); else slideshowPrev();
+    }
+  });
+
+  zeichneSlideshowBild();
+}
+
+function zeichneSlideshowBild() {
+  var s = window._slideshowState;
+  if (!s) return;
+  var b = s.bilder[s.idx];
+  var imgEl = document.getElementById('slideshow-bild');
+  var capEl = document.getElementById('slideshow-caption');
+  var counterEl = document.getElementById('slideshow-counter');
+  if (imgEl) {
+    imgEl.src = b.url || '';
+    imgEl.alt = b.caption || '';
+  }
+  if (counterEl) counterEl.textContent = (s.idx + 1) + ' / ' + s.bilder.length;
+  if (capEl) {
+    var parts = [];
+    if (b.caption) parts.push(escapeHtml(b.caption));
+    if (b.autor || b.lizenz) {
+      var credit = [];
+      if (b.autor)  credit.push('© ' + escapeHtml(b.autor));
+      if (b.lizenz) credit.push(escapeHtml(b.lizenz));
+      parts.push('<span class="slideshow-credit">' + credit.join(' · ') + '</span>');
+    }
+    capEl.innerHTML = parts.join(' — ') || '&nbsp;';
+  }
+  // Pfeile ausblenden falls nur 1 Bild
+  var navs = document.querySelectorAll('.slideshow-nav');
+  for (var i = 0; i < navs.length; i++) navs[i].style.display = s.bilder.length > 1 ? '' : 'none';
+}
+
+function slideshowNext() {
+  var s = window._slideshowState; if (!s) return;
+  s.idx = (s.idx + 1) % s.bilder.length;
+  zeichneSlideshowBild();
+}
+function slideshowPrev() {
+  var s = window._slideshowState; if (!s) return;
+  s.idx = (s.idx - 1 + s.bilder.length) % s.bilder.length;
+  zeichneSlideshowBild();
+}
+function schliesseSlideshow() {
+  var ov = document.getElementById('slideshow-overlay');
+  if (ov) ov.parentNode.removeChild(ov);
+  document.body.classList.remove('slideshow-aktiv');
+  document.removeEventListener('keydown', _slideshowKeyHandler);
+  window._slideshowState = null;
+}
+function _slideshowKeyHandler(e) {
+  if (e.key === 'Escape')     schliesseSlideshow();
+  else if (e.key === 'ArrowRight') slideshowNext();
+  else if (e.key === 'ArrowLeft')  slideshowPrev();
+}
+
+// Trigger-Helper fuer den onclick im Foto-Button: liest die aktuell
+// gerenderte Bilder-Liste aus window._aktiveBilder (wird beim Render des
+// Detail-Eintrags gesetzt). So muss der Button nicht das ganze Array
+// inline als JSON tragen.
+function oeffneAktiveSlideshow() {
+  oeffneSlideshow(window._aktiveBilder || [], 0);
 }
