@@ -1094,12 +1094,13 @@ function ermittleBezirkAusKoords(lat, lng) {
 // Cached Bezirk-Lookup pro Tour basierend auf erstem Trackpunkt.
 function tourBezirk(tour) {
   if (tour._bezirkCache !== undefined) return tour._bezirkCache;
-  // 1. Wenn die Tour direkt ein 'bezirk'-Feld traegt (vom Mapper z.B.), nutzen
-  if (tour.bezirk && /^(AK|NR|WW)$/.test(tour.bezirk)) {
+  // 1. Wenn die Tour direkt ein 'bezirk'-Feld traegt (vom Mapper berechnet),
+  //    nutzen wir das. Werte: 'AK', 'NR', 'WW', 'HE', 'SO'.
+  if (tour.bezirk && /^(AK|NR|WW|HE|SO)$/.test(tour.bezirk)) {
     tour._bezirkCache = tour.bezirk;
     return tour.bezirk;
   }
-  // 2. Aus erstem Track-Punkt via Polygon-Lookup
+  // 2. Aus erstem Track-Punkt via Polygon-Lookup (gibt nur AK/NR/WW)
   var pt = null;
   if (tour._track && tour._track.length && tour._track[0] && tour._track[0].length) {
     pt = tour._track[0][0];  // [lng, lat, h]
@@ -1108,16 +1109,13 @@ function tourBezirk(tour) {
     var bz = ermittleBezirkAusKoords(pt[1], pt[0]);
     if (bz) { tour._bezirkCache = bz; return bz; }
   }
-  // 3. Fallback: PLZ-basierte Zuordnung (typischer Startort der Tour)
-  if (tour.plz) {
-    var bz2 = plzZuBezirk(tour.plz);
-    if (bz2 && /^(AK|NR|WW)$/.test(bz2)) {
-      tour._bezirkCache = bz2;
-      return bz2;
-    }
-  }
-  tour._bezirkCache = null;
-  return null;
+  // 3. Letzter Fallback: 'SO' (Sonstige). So fallen Touren mit Start ausserhalb
+  //    der drei Westerwald-Kreise (z.B. WesterwaldSteig-Etappen in Hessen)
+  //    nicht durch alle Filter, sondern lassen sich gezielt unter "Sonstige"
+  //    finden. Wenn der Mapper Hessen erkennt (per Polygon-Erweiterung), wird
+  //    statt 'SO' der Wert 'HE' geliefert -- siehe build_wandertouren.py.
+  tour._bezirkCache = 'SO';
+  return 'SO';
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1519,8 +1517,8 @@ function baueListenEintrag(n, slug, detailTyp, inVorbereitung) {
 }
 
 function renderEtappenListe(ziel, slug, info, zurueckSlug, detailTyp) {
-  // Filter-State zurücksetzen bei jedem Aufruf
-  FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle', bezirk: 'alle' };
+  // Filter-State bei jedem Aufruf frisch initialisieren (Multi-Select-Objekte)
+  FILTER_STATE = { sw: {}, dauer: {}, km: {}, bezirk: {} };
   window._aktuelleListe = { slug: slug, info: info, detailTyp: detailTyp };
 
   var daten = window[info.name];
