@@ -1210,32 +1210,49 @@ function kmZuZahl(k) {
 // ════════════════════════════════════════════════════════════════
 // FILTER-STATE (pro Listenseite zurückgesetzt)
 // ════════════════════════════════════════════════════════════════
-var FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle', bezirk: 'alle' };
+// Filter-State fuer Wandern/Rad-Touren. Multi-Select: pro Gruppe ein Object
+// {key: true, ...}. Leeres Object = "alle". So koennen mehrere Werte gleichzeitig
+// gewaehlt sein, z.B. Schwierigkeit "leicht" UND "mittel".
+var FILTER_STATE = { sw: {}, dauer: {}, km: {}, bezirk: {} };
 
 function filterAnwenden(eintraege) {
+  // Anzahl moeglicher Keys pro Gruppe -- 0 oder gleich == "nicht filtern".
+  var swCount    = Object.keys(FILTER_STATE.sw).length;
+  var dauerCount = Object.keys(FILTER_STATE.dauer).length;
+  var kmCount    = Object.keys(FILTER_STATE.km).length;
+  var bezCount   = Object.keys(FILTER_STATE.bezirk).length;
+  // Anzahl waehlbarer Optionen (alle "alle"-Optionen ausgenommen): 3,3,3,5
+  var swAktiv    = swCount    > 0 && swCount    < 3;
+  var dauerAktiv = dauerCount > 0 && dauerCount < 3;
+  var kmAktiv    = kmCount    > 0 && kmCount    < 3;
+  var bezAktiv   = bezCount   > 0 && bezCount   < 5;
+
   return eintraege.filter(function(n) {
-    if (FILTER_STATE.sw !== 'alle') {
-      if (swKlasse(n.schwierigkeit) !== FILTER_STATE.sw) return false;
+    if (swAktiv) {
+      if (!FILTER_STATE.sw[swKlasse(n.schwierigkeit)]) return false;
     }
-    if (FILTER_STATE.dauer !== 'alle') {
+    if (dauerAktiv) {
       var dm = dauerInMinuten(n.dauer);
       if (dm == null) return false;
-      if (FILTER_STATE.dauer === 'kurz'   && dm > 180) return false;
-      if (FILTER_STATE.dauer === 'mittel' && (dm <= 180 || dm > 360)) return false;
-      if (FILTER_STATE.dauer === 'lang'   && dm <= 360) return false;
+      var matchDauer = false;
+      if (FILTER_STATE.dauer.kurz   && dm <= 180) matchDauer = true;
+      if (FILTER_STATE.dauer.mittel && dm > 180 && dm <= 360) matchDauer = true;
+      if (FILTER_STATE.dauer.lang   && dm > 360) matchDauer = true;
+      if (!matchDauer) return false;
     }
-    if (FILTER_STATE.km !== 'alle') {
+    if (kmAktiv) {
       var kk = kmZuZahl(n.km);
       if (kk == null) return false;
-      if (FILTER_STATE.km === 'kurz'   && kk > 10) return false;
-      if (FILTER_STATE.km === 'mittel' && (kk <= 10 || kk > 25)) return false;
-      if (FILTER_STATE.km === 'lang'   && kk <= 25) return false;
+      var matchKm = false;
+      if (FILTER_STATE.km.kurz   && kk <= 10) matchKm = true;
+      if (FILTER_STATE.km.mittel && kk > 10 && kk <= 25) matchKm = true;
+      if (FILTER_STATE.km.lang   && kk > 25) matchKm = true;
+      if (!matchKm) return false;
     }
-    if (FILTER_STATE.bezirk !== 'alle') {
-      // Tour wird einem Landkreis zugeordnet anhand des Startpunkts
-      // (erster Track-Punkt). Ist sie ausserhalb AK/NR/WW (z.B. WesterwaldSteig-
-      // Etappen in Hessen) -> tourBezirk() liefert null -> faellt durch.
-      if (tourBezirk(n) !== FILTER_STATE.bezirk) return false;
+    if (bezAktiv) {
+      // Tour-Bezirk: 'AK', 'NR', 'WW', 'HE', 'SO' oder null (Polygon ausserhalb)
+      var bz = tourBezirk(n);
+      if (!FILTER_STATE.bezirk[bz || '']) return false;
     }
     return true;
   });
@@ -1253,53 +1270,112 @@ function pillRow(name, label, optionen) {
 }
 
 function filterUI() {
-  var anyAktiv = FILTER_STATE.sw !== 'alle' || FILTER_STATE.dauer !== 'alle' || FILTER_STATE.km !== 'alle' || FILTER_STATE.bezirk !== 'alle';
-  return '<div class="filter-leiste">'
-    + '<div class="filter-titel">Filter'
-      + (anyAktiv ? '<button class="reset-btn" onclick="resetFilter()">↺ Zurücksetzen</button>' : '')
-    + '</div>'
-    + pillRow('sw', 'Schwierigkeit', [
-        {val:'alle',   label:'Alle'},
-        {val:'leicht', label:'Leicht'},
-        {val:'mittel', label:'Mittel'},
-        {val:'schwer', label:'Schwer'}
-      ])
-    + pillRow('dauer', 'Dauer', [
-        {val:'alle',   label:'Alle'},
-        {val:'kurz',   label:'< 3 h'},
-        {val:'mittel', label:'3 – 6 h'},
-        {val:'lang',   label:'> 6 h'}
-      ])
-    + pillRow('km', 'Länge', [
-        {val:'alle',   label:'Alle'},
-        {val:'kurz',   label:'< 10 km'},
-        {val:'mittel', label:'10 – 25 km'},
-        {val:'lang',   label:'> 25 km'}
-      ])
-    // Region-Filter: Tour wird per Point-in-Polygon dem Landkreis ihres
-    // Startpunkts zugeordnet (siehe tourBezirk()). Touren ausserhalb der drei
-    // Westerwaelder Kreise (z.B. WesterwaldSteig in Hessen) fallen aus jedem
-    // Bezirks-Filter heraus.
-    + pillRow('bezirk', 'Region', [
-        {val:'alle', label:'Alle'},
-        {val:'AK',   label:'Kreis Altenkirchen'},
-        {val:'NR',   label:'Kreis Neuwied'},
-        {val:'WW',   label:'Westerwaldkreis'},
-        {val:'HE',   label:'Hessen'},
-        {val:'SO',   label:'Sonstige'}
-      ])
+  // Vier Multi-Select-Dropdowns: 1. Reihe Schwierigkeit + Dauer,
+  // 2. Reihe Laenge + Region. Identische Optik wie die anderen Listen-Filter.
+  var swOpts = [
+    {key:'leicht', label:'Leicht'},
+    {key:'mittel', label:'Mittel'},
+    {key:'schwer', label:'Schwer'}
+  ];
+  var dauerOpts = [
+    {key:'kurz',   label:'< 3 h'},
+    {key:'mittel', label:'3 – 6 h'},
+    {key:'lang',   label:'> 6 h'}
+  ];
+  var kmOpts = [
+    {key:'kurz',   label:'< 10 km'},
+    {key:'mittel', label:'10 – 25 km'},
+    {key:'lang',   label:'> 25 km'}
+  ];
+  var bezOpts = [
+    {key:'AK', label:'Kreis Altenkirchen'},
+    {key:'NR', label:'Kreis Neuwied'},
+    {key:'WW', label:'Westerwaldkreis'},
+    {key:'HE', label:'Hessen'},
+    {key:'SO', label:'Sonstige'}
+  ];
+  var anyAktiv = Object.keys(FILTER_STATE.sw).length
+              || Object.keys(FILTER_STATE.dauer).length
+              || Object.keys(FILTER_STATE.km).length
+              || Object.keys(FILTER_STATE.bezirk).length;
+  var html = '<div class="filter-leiste">';
+  if (anyAktiv) {
+    html += '<div class="filter-titel"><button class="reset-btn" onclick="resetFilter()">↺ Zurücksetzen</button></div>';
+  }
+  html += '<div class="filter-row">'
+    + renderFilterDropdownWR('Schwierigkeit', swOpts,    FILTER_STATE.sw,     'sw',     '⛰️')
+    + renderFilterDropdownWR('Dauer',         dauerOpts, FILTER_STATE.dauer,  'dauer',  '⏱️')
     + '</div>';
+  html += '<div class="filter-row">'
+    + renderFilterDropdownWR('Länge',         kmOpts,    FILTER_STATE.km,     'km',     '📏')
+    + renderFilterDropdownWR('Region',        bezOpts,   FILTER_STATE.bezirk, 'bezirk', '📍')
+    + '</div>';
+  html += '</div>';
+  return html;
 }
 
-// Globale Helpers, die der HTML aufruft
-window._aktuelleListe = null; // {slug, info, detailTyp}
+// Eigene Dropdown-Variante fuer Wandern/Rad-Filter (State auf FILTER_STATE,
+// Confirm ruft filterDropdownConfirmWR auf, das rerenderListe ausloest).
+function renderFilterDropdownWR(label, opts, stateObj, group, icon) {
+  icon = icon || '';
+  var aktivKeys = Object.keys(stateObj);
+  var summary;
+  if (aktivKeys.length === 0)                  summary = '<em>nicht gefiltert</em>';
+  else if (aktivKeys.length === opts.length)   summary = 'Alle';
+  else if (aktivKeys.length <= 2) {
+    var names = [];
+    for (var i = 0; i < opts.length; i++) if (stateObj[opts[i].key]) names.push(opts[i].label);
+    summary = names.join(', ');
+  } else summary = aktivKeys.length + ' gewählt';
+
+  var ddId = 'wr-' + group + '-' + Math.random().toString(36).slice(2, 7);
+  var html = '<div class="filter-dropdown">'
+    + '<button type="button" class="filter-dropdown-head" onclick="toggleFilterDropdown(\'' + ddId + '\')">'
+    +   '<span class="filter-dropdown-label">' + icon + ' ' + escapeHtml(label) + '</span>'
+    +   '<span class="filter-dropdown-summary">' + summary + '</span>'
+    +   '<span class="filter-dropdown-arrow">▾</span>'
+    + '</button>'
+    + '<div class="filter-dropdown-panel" id="' + ddId + '">'
+    +   '<div class="filter-dropdown-opts">';
+  for (var j = 0; j < opts.length; j++) {
+    var o = opts[j];
+    var aktiv = !!stateObj[o.key];
+    html += '<label class="filter-dropdown-check">'
+      + '<input type="checkbox" data-dd-key="' + escapeHtml(o.key) + '"'
+      +   (aktiv ? ' checked' : '') + '>'
+      + '<span>' + escapeHtml(o.label) + '</span>'
+      + '</label>';
+  }
+  html += '</div>'
+    + '<div class="filter-dropdown-bar">'
+    +   '<button type="button" class="filter-dropdown-clear" onclick="filterDropdownClear(\'' + ddId + '\')">Zurücksetzen</button>'
+    +   '<button type="button" class="filter-dropdown-confirm" onclick="filterDropdownConfirmWR(\'' + ddId + '\',\'' + group + '\')">Bestätigen</button>'
+    + '</div>';
+  html += '</div></div>';
+  return html;
+}
+
+function filterDropdownConfirmWR(id, group) {
+  var panel = document.getElementById(id);
+  if (!panel) return;
+  if (FILTER_STATE[group]) {
+    for (var k in FILTER_STATE[group]) delete FILTER_STATE[group][k];
+    var checks = panel.querySelectorAll('input[type="checkbox"]');
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].checked) FILTER_STATE[group][checks[i].getAttribute('data-dd-key')] = true;
+    }
+  }
+  panel.classList.remove('offen');
+  rerenderListe();
+}
 
 function setzeFilter(name, wert) {
+  // Legacy-Helper - bleibt fuer Kompatibilitaet, wird durch Dropdowns ersetzt
   FILTER_STATE[name] = wert;
   rerenderListe();
 }
 function resetFilter() {
-  FILTER_STATE = { sw: 'alle', dauer: 'alle', km: 'alle', bezirk: 'alle' };
+  FILTER_STATE = { sw: {}, dauer: {}, km: {}, bezirk: {} };
   rerenderListe();
 }
 function rerenderListe() {
@@ -1466,12 +1542,11 @@ function renderEtappenListe(ziel, slug, info, zurueckSlug, detailTyp) {
     trefferTxt += ' · <span class="treffer-extra">+' + initialUnvoll + ' in Vorbereitung</span>';
   }
 
-  // Sticky-Region: navBar + intro + filter-leiste
-  // Beim Scrollen bleibt diese gesamte Box oben kleben
+  // Sticky-Region: navBar + filter-leiste (intro entfaellt -- Breadcrumb
+  // genuegt als Ueberschrift, spart vertikalen Platz)
   ziel.innerHTML =
     '<div class="sticky-region">'
       + navBar('liste/' + zurueckSlug, info.breadcrumb)
-      + intro(info.titel, info.untertitel)
       + '<div id="filter-leiste-wrapper">' + filterUI() + '</div>'
     + '</div>'
     + '<div class="listen-karte-btn-row">'
