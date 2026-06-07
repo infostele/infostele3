@@ -770,10 +770,12 @@ body.slideshow-aktiv { overflow: hidden; }
   border: 1.5px solid #1d6b3e;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-  z-index: 100;
+  /* Leaflet legt seine Tile- und Marker-Panes auf z-index 200-700.
+     Unser Dropdown-Panel muss zwingend daruebersein, sonst wird es von
+     der Karte verdeckt sobald sie gerendert wird. */
+  z-index: 1100;
   max-height: 340px;
   overflow: hidden;
-  display: none;
   flex-direction: column;
 }
 .filter-dropdown-panel.offen {
@@ -1007,8 +1009,13 @@ body.slideshow-aktiv { overflow: hidden; }
   background: #f5f5f5;
   padding: 8px 12px;
   border-bottom: 1px solid #ddd;
-  max-height: 35%;
-  overflow-y: auto;
+  /* WICHTIG: weder overflow: hidden noch overflow-y: auto, sonst
+     wird das absolute Dropdown-Panel beim Aufklappen abgeschnitten.
+     Stattdessen geben wir dem Filter-Container einen hoeheren Stacking-
+     Context als Leaflet (Leaflet-Panes liegen auf 200-700). */
+  position: relative;
+  z-index: 1000;
+  overflow: visible;
 }
 .listen-karte-filter-gruppe {
   display: flex;

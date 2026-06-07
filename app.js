@@ -5209,6 +5209,7 @@ function _wandern_konvertiereEine(t) {
     // Zusatz fuer Karte / Bild (vom Detail-Renderer evtl. ignoriert,
     // aber fuer eine spaetere Map-Verbesserung schon mitgereicht)
     _track:        t.track,
+    bezirk:        t.bezirk,    // 'AK', 'NR', 'WW' oder null/undefined (vom Python-Mapper berechnet)
     _slug:         t.slug,
     _id:           t.id,
     _bild:         t.bild,
