@@ -1067,16 +1067,30 @@ function ermittleBezirkAusKoords(lat, lng) {
 // Cached Bezirk-Lookup pro Tour basierend auf erstem Trackpunkt.
 function tourBezirk(tour) {
   if (tour._bezirkCache !== undefined) return tour._bezirkCache;
+  // 1. Wenn die Tour direkt ein 'bezirk'-Feld traegt (vom Mapper z.B.), nutzen
+  if (tour.bezirk && /^(AK|NR|WW)$/.test(tour.bezirk)) {
+    tour._bezirkCache = tour.bezirk;
+    return tour.bezirk;
+  }
+  // 2. Aus erstem Track-Punkt via Polygon-Lookup
   var pt = null;
   if (tour._track && tour._track.length && tour._track[0] && tour._track[0].length) {
     pt = tour._track[0][0];  // [lng, lat, h]
   }
-  if (!pt || pt.length < 2) {
-    tour._bezirkCache = null;
-    return null;
+  if (pt && pt.length >= 2) {
+    var bz = ermittleBezirkAusKoords(pt[1], pt[0]);
+    if (bz) { tour._bezirkCache = bz; return bz; }
   }
-  tour._bezirkCache = ermittleBezirkAusKoords(pt[1], pt[0]);
-  return tour._bezirkCache;
+  // 3. Fallback: PLZ-basierte Zuordnung (typischer Startort der Tour)
+  if (tour.plz) {
+    var bz2 = plzZuBezirk(tour.plz);
+    if (bz2 && /^(AK|NR|WW)$/.test(bz2)) {
+      tour._bezirkCache = bz2;
+      return bz2;
+    }
+  }
+  tour._bezirkCache = null;
+  return null;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1687,15 +1701,14 @@ function filterDropdownConfirmTermine(id, group) {
     }
   }
   panel.classList.remove('offen');
-  // Termin-Refresh via gespeichertem Context auslösen
-  if (window._aktuelleTermine && typeof setzeTerminFilter === 'function') {
-    // Trigger re-render
-    var l = window._aktuelleTermine;
-    var fLeiste = document.getElementById('termine-filter-wrapper');
+  // Termin-Refresh via gespeichertem Context (_aktuelleTermine = {slug, info})
+  var ctx = window._aktuelleTermine;
+  if (ctx) {
+    var fLeiste = document.getElementById('filter-leiste-wrapper');
     var liste   = document.getElementById('termine-liste');
     if (fLeiste) fLeiste.innerHTML = termineFilterUI();
-    if (liste)   liste.innerHTML = baueTermineInhalt(l.slug, l.l);
-    if (typeof aktualisiereTermineTreffer === 'function') aktualisiereTermineTreffer(l.l);
+    if (liste)   liste.innerHTML = baueTermineListe(ctx.slug, ctx.info);
+    if (typeof aktualisiereTermineTreffer === 'function') aktualisiereTermineTreffer(ctx);
   }
 }
 
@@ -5666,17 +5679,24 @@ function renderListenKarte(ziel, slug) {
   }
 
   // Filter-State pro Slug merken (bleibt erhalten beim Hin- und Herwechseln
-  // zwischen Karte und Detail-Seite, da window beim SPA-Navigieren bestehen bleibt)
+  // zwischen Karte und Detail-Seite). Wenn der User aus der Listen-Ansicht
+  // kommt und dort Filter aktiv hatte, uebernehmen wir die fuer die Karte.
   window._listenKarteState = window._listenKarteState || {};
   var state = window._listenKarteState[slug];
-  if (!state) {
+  // Listen-Filter (GEFILTERT_STATE) hat aktive Werte? -> als Karte-State uebernehmen
+  var listeHatFilter = (Object.keys(GEFILTERT_STATE.typ    || {}).length > 0)
+                    || (Object.keys(GEFILTERT_STATE.bezirk || {}).length > 0);
+  if (!state || listeHatFilter) {
     state = window._listenKarteState[slug] = {
-      typ: {},                  // {key: true} fuer aktivierte Typen
-      bezirk: {},               // {key: true} fuer aktivierte Bezirke
-      standortGefragt: false,   // hat der Banner schon mal gefragt?
-      eigenerStandort: null     // [lat, lng] falls erlaubt
+      typ:    Object.assign({}, GEFILTERT_STATE.typ    || {}),
+      bezirk: Object.assign({}, GEFILTERT_STATE.bezirk || {}),
+      standortGefragt: false,
+      eigenerStandort: null
     };
   }
+
+  // Eindeutige ID fuer das Karten-Element (wird in initListenKarte gesucht).
+  var mapId = 'lkarte-' + Math.random().toString(36).slice(2);
 
   // Filter-Sektion: Dropdowns mit "Bestätigen"-Button pro Gruppe.
   // INITIAL alle Checkboxen leer (oder restored aus State).
@@ -6036,14 +6056,20 @@ function renderVeranstaltungenKarte(ziel) {
     mitGeo.push({ _orig: ev, _globalIdx: idx, lat: lat, lng: lng });
   }
 
-  // State persistieren
+  // State persistieren - aber wenn der User aus der Listen-Ansicht kommt und
+  // dort Filter aktiv hatte, sollen die in die Karte uebernommen werden.
   window._listenKarteState = window._listenKarteState || {};
   var state = window._listenKarteState['veranstaltungen-alle'];
-  if (!state) {
+  // TERMIN_FILTER (Listen-State) als Quelle nutzen falls dort etwas gefiltert ist
+  var listeHatFilter = (Object.keys(TERMIN_FILTER.datum || {}).length > 0)
+                    || (Object.keys(TERMIN_FILTER.bezirk || {}).length > 0)
+                    || (Object.keys(TERMIN_FILTER.art || {}).length > 0);
+  if (!state || listeHatFilter) {
     state = window._listenKarteState['veranstaltungen-alle'] = {
-      datum: {},   // {heute: true, woche: true, ...}
-      bezirk: {},
-      art: {},
+      // Snapshot der Listen-Filter -- Liste und Karte teilen die Auswahl
+      datum:  Object.assign({}, TERMIN_FILTER.datum  || {}),
+      bezirk: Object.assign({}, TERMIN_FILTER.bezirk || {}),
+      art:    Object.assign({}, TERMIN_FILTER.art    || {}),
       standortGefragt: false,
       eigenerStandort: null
     };
