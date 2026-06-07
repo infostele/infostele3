@@ -765,9 +765,9 @@ var LISTEN = {
     ],
     filterBezirke:[
       {key:'alle',   label:'Alle'},
-      {key:'AK',     label:'Altenkirchen'},
-      {key:'NR',     label:'Neuwied'},
-      {key:'WW',     label:'Westerwald'},
+      {key:'AK',     label:'Kreis Altenkirchen'},
+      {key:'NR',     label:'Kreis Neuwied'},
+      {key:'WW',     label:'Westerwaldkreis'},
       {key:'Hessen', label:'Hessen'},
       {key:'NRW',    label:'NRW'}
     ],
@@ -802,9 +802,9 @@ var LISTEN = {
     ],
     filterBezirke:[
       {key:'alle',   label:'Alle'},
-      {key:'AK',     label:'Altenkirchen'},
-      {key:'NR',     label:'Neuwied'},
-      {key:'WW',     label:'Westerwald'},
+      {key:'AK',     label:'Kreis Altenkirchen'},
+      {key:'NR',     label:'Kreis Neuwied'},
+      {key:'WW',     label:'Westerwaldkreis'},
       {key:'Hessen', label:'Hessen'},
       {key:'NRW',    label:'NRW'}
     ],
@@ -838,9 +838,9 @@ var LISTEN = {
     ],
     filterBezirke:[
       {key:'alle',   label:'Alle'},
-      {key:'AK',     label:'Altenkirchen'},
-      {key:'NR',     label:'Neuwied'},
-      {key:'WW',     label:'Westerwald'},
+      {key:'AK',     label:'Kreis Altenkirchen'},
+      {key:'NR',     label:'Kreis Neuwied'},
+      {key:'WW',     label:'Westerwaldkreis'},
       {key:'Hessen', label:'Hessen'},
       {key:'NRW',    label:'NRW'}
     ],
@@ -1211,9 +1211,9 @@ function filterUI() {
     // Bezirks-Filter heraus.
     + pillRow('bezirk', 'Region', [
         {val:'alle', label:'Alle'},
-        {val:'AK',   label:'Altenkirchen'},
-        {val:'NR',   label:'Neuwied'},
-        {val:'WW',   label:'Westerwald'}
+        {val:'AK',   label:'Kreis Altenkirchen'},
+        {val:'NR',   label:'Kreis Neuwied'},
+        {val:'WW',   label:'Westerwaldkreis'}
       ])
     + '</div>';
 }
@@ -1583,9 +1583,9 @@ function termineFilterUI() {
     {key:'dauer',  label:'Dauerveranstaltungen'}
   ];
   var bezirkOpts = [
-    {key:'AK',     label:'Altenkirchen'},
-    {key:'NR',     label:'Neuwied'},
-    {key:'WW',     label:'Westerwald'},
+    {key:'AK',     label:'Kreis Altenkirchen'},
+    {key:'NR',     label:'Kreis Neuwied'},
+    {key:'WW',     label:'Westerwaldkreis'},
     {key:'Hessen', label:'Hessen'}
   ];
   var artOpts = [
@@ -2077,7 +2077,7 @@ function renderTerminDetail(ziel, item, info, zurueck) {
     pills += '</span>';
   }
   if (item.bezirk) {
-    var bezirkLabel = item.bezirk === 'AK' ? 'Altenkirchen' : item.bezirk === 'WW' ? 'Westerwald' : item.bezirk === 'NR' ? 'Neuwied' : item.bezirk;
+    var bezirkLabel = item.bezirk === 'AK' ? 'Kreis Altenkirchen' : item.bezirk === 'WW' ? 'Westerwaldkreis' : item.bezirk === 'NR' ? 'Kreis Neuwied' : item.bezirk;
     pills += '<span class="diff-pill diff-leicht-bg">📍 ' + escapeHtml(bezirkLabel) + '</span>';
   }
   if (item.kostenfrei) pills += '<span class="diff-pill termin-frei-pill">kostenfrei</span>';
@@ -5524,9 +5524,9 @@ function renderListenKarte(ziel, slug) {
         ],
         filterBezirke: [
           {key:'alle',   label:'Alle'},
-          {key:'AK',     label:'Altenkirchen'},
-          {key:'NR',     label:'Neuwied'},
-          {key:'WW',     label:'Westerwald'},
+          {key:'AK',     label:'Kreis Altenkirchen'},
+          {key:'NR',     label:'Kreis Neuwied'},
+          {key:'WW',     label:'Westerwaldkreis'},
           {key:'Hessen', label:'Hessen'},
           {key:'NRW',    label:'NRW'}
         ],
@@ -5562,9 +5562,9 @@ function renderListenKarte(ziel, slug) {
         ],
         filterBezirke: [
           {key:'alle',   label:'Alle'},
-          {key:'AK',     label:'Altenkirchen'},
-          {key:'NR',     label:'Neuwied'},
-          {key:'WW',     label:'Westerwald'},
+          {key:'AK',     label:'Kreis Altenkirchen'},
+          {key:'NR',     label:'Kreis Neuwied'},
+          {key:'WW',     label:'Westerwaldkreis'},
           {key:'Hessen', label:'Hessen'},
           {key:'NRW',    label:'NRW'}
         ],
@@ -6030,9 +6030,9 @@ function renderVeranstaltungenKarte(ziel) {
     {key:'dauer',  label:'Dauerveranstaltungen'}
   ];
   var bezirkOpts = [
-    {key:'AK',     label:'Altenkirchen'},
-    {key:'NR',     label:'Neuwied'},
-    {key:'WW',     label:'Westerwald'},
+    {key:'AK',     label:'Kreis Altenkirchen'},
+    {key:'NR',     label:'Kreis Neuwied'},
+    {key:'WW',     label:'Westerwaldkreis'},
     {key:'Hessen', label:'Hessen'},
     {key:'NRW',    label:'NRW'}
   ];
