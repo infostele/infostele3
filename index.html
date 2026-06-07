@@ -490,8 +490,181 @@ body.slideshow-aktiv { overflow: hidden; }
 }
 
 /* ════════════════════════════════════════════════════════════════
-   BUCHUNG (TOSC5-iFrame zu westerwald.info)
+   ANFRAGE-MASKE: Datums-Eingabe + Aktionsbuttons fuer Unterkuenfte
    ════════════════════════════════════════════════════════════════ */
+.anfrage-wrap {
+  padding: 12px 14px 24px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.anfrage-header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.anfrage-titel {
+  font-size: 19px;
+  font-weight: 700;
+  color: #1d6b3e;
+  margin: 0 0 4px 0;
+  line-height: 1.3;
+}
+.anfrage-adresse {
+  font-size: 14px;
+  color: #666;
+}
+.anfrage-form {
+  background: #f6f6f1;
+  border: 1px solid #e6e3da;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 18px;
+}
+.anfrage-feld {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.anfrage-feld:last-child { margin-bottom: 0; }
+.anfrage-feld label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 4px;
+}
+.anfrage-feld input,
+.anfrage-feld textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 12px;
+  border: 1.5px solid #ccc;
+  border-radius: 8px;
+  font-size: 16px;   /* >= 16px verhindert iOS-Zoom beim Fokus */
+  font-family: inherit;
+  background: #fff;
+  -webkit-appearance: none;
+}
+.anfrage-feld input:focus,
+.anfrage-feld textarea:focus {
+  outline: none;
+  border-color: #1d6b3e;
+  box-shadow: 0 0 0 3px rgba(29, 107, 62, 0.15);
+}
+.anfrage-feld-row {
+  display: flex;
+  gap: 10px;
+}
+.anfrage-feld-row .anfrage-feld { flex: 1; margin-bottom: 12px; }
+
+.anfrage-aktionen-titel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 10px;
+}
+.anfrage-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 10px;
+  text-align: left;
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.anfrage-btn:hover, .anfrage-btn:active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.18);
+}
+.anfrage-btn-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 3px;
+  opacity: 0.85;
+}
+.anfrage-btn-email  { background: #1d6b3e; }                /* primaer: gruen */
+.anfrage-btn-tel    { background: #5e7c3f; }                /* sekundaer: oliv */
+.anfrage-btn-online { background: #4a6379; }                /* tertiaer: grau-blau */
+.anfrage-btn-web    { background: #7a7a6a; }                /* webseite: grau */
+
+/* ════════════════════════════════════════════════════════════════
+   ANFRAGE-BAR: Schlanke Eingabe-Leiste OBEN, iFrame DARUNTER.
+   Datum/Personen werden beim "Anwenden"-Klick als URL-Parameter ins
+   TOSC5-iFrame geschickt. So bleibt der iFrame erhalten und das
+   Cross-Origin-DOM-Problem ist umgangen.
+   ════════════════════════════════════════════════════════════════ */
+.anfrage-bar {
+  background: #f6f6f1;
+  border-bottom: 1px solid #e6e3da;
+  padding: 8px 10px;
+}
+.anfrage-bar-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.anfrage-bar-row + .anfrage-bar-row { margin-top: 6px; }
+.anfrage-bar-feld {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.anfrage-bar-row-pers .anfrage-bar-feld { flex: 0 0 70px; }
+.anfrage-bar-feld label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+.anfrage-bar-feld input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 16px;     /* >= 16 px verhindert iOS-Auto-Zoom */
+  font-family: inherit;
+  background: #fff;
+  -webkit-appearance: none;
+}
+.anfrage-bar-feld input:focus {
+  outline: none;
+  border-color: #1d6b3e;
+}
+.anfrage-bar-btn {
+  flex: 1;
+  margin-left: 6px;
+  padding: 8px 12px;
+  background: #1d6b3e;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.anfrage-bar-btn:hover, .anfrage-bar-btn:active { background: #155030; }
+
+/* iFrame-Wrap direkt nach Anfrage-Bar: Hoehe entsprechend reduzieren */
+.anfrage-bar + .buchung-iframe-wrap {
+  height: calc(100vh - var(--header-h, 0px) - 110px);
+  min-height: 600px;
+}
+
 .buchung-iframe-wrap {
   position: relative;        /* wichtig fuer den Floating-Button */
   width: 100%;

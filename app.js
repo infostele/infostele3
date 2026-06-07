@@ -405,6 +405,9 @@ function router() {
   else if (teile[0] === 'unterkunft-buchen' && teile[1]) {
     renderUnterkunftBuchung(ziel, teile[1], teile[2] || '');
   }
+  else if (teile[0] === 'unterkunft-anfrage' && teile[1]) {
+    renderUnterkunftAnfrage(ziel, parseInt(teile[1], 10));
+  }
   else if (teile[0] === 'detail-karte' && teile[1] && teile[2]) {
     // Wie detail/<typ>/<key>, aber Zurueck-Button fuehrt auf die Karte (nicht Liste)
     var sk = teile[2];
@@ -2542,16 +2545,25 @@ function renderUnterkunftDetail(ziel, item, info, zurueck, typ) {
   // Die App oeffnet diese in einem iFrame (eigener Renderer renderUnterkunftBuchung),
   // damit der Nutzer nicht aus der App geworfen wird.
   if (istUnterkunft) {
-    if (item.feratelUuid) {
-      // Slug aus dem Namen ableiten falls keiner mitgeliefert -- TOSC5 ignoriert ihn
-      // ohnehin und routet ueber die UUID.
-      var slugFuerUrl = item.slug || item.name.toLowerCase()
-        .replace(/[äöüß]/g, function(c) { return {'ä':'ae','ö':'oe','ü':'ue','ß':'ss'}[c]; })
-        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      tagRow += '<a class="btn-action btn-gpx" href="#unterkunft-buchen/' + encodeURIComponent(item.feratelUuid) + '/' + encodeURIComponent(slugFuerUrl) + '" title="Verfügbarkeit auf westerwald.info pruefen">🛏️ Verfügbarkeit prüfen</a>';
-    } else {
-      // Fallback: keine Feratel-UUID -> WWTS-Liste, Nutzer sucht selbst
-      tagRow += '<a class="btn-action btn-gpx" href="https://www.westerwald.info/tosc5/unterkuenfte?limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6" target="_blank" rel="noopener" title="Auf westerwald.info suchen">🛏️ Verfügbarkeit prüfen</a>';
+    // "Verfuegbarkeit pruefen" leitet auf die eigene Anfrage-Maske der App.
+    // Dort kann der Nutzer Datum + Personenzahl eingeben und die Anfrage
+    // entweder per E-Mail an den Vermieter senden, anrufen oder die TOSC5-
+    // Buchungsseite (best-effort mit Datums-Parametern) im neuen Tab oeffnen.
+    // Der direkte TOSC5-iFrame-Ansatz war auf Smartphones unbedienbar.
+    var anfrageIdx = (item._globalIdx !== undefined) ? item._globalIdx : -1;
+    if (anfrageIdx < 0) {
+      // Fallback: item-Index aus der Roh-Liste suchen
+      var alleU = window.DATA_UNTERKUENFTE_DH || [];
+      for (var aui = 0; aui < alleU.length; aui++) {
+        if (alleU[aui] === item || alleU[aui].id === item.id) { anfrageIdx = aui; break; }
+      }
+    }
+    if (anfrageIdx >= 0) {
+      tagRow += '<a class="btn-action btn-gpx" href="#unterkunft-anfrage/' + anfrageIdx + '" title="Anfrage stellen">🛏️ Verfügbarkeit prüfen</a>';
+    } else if (item.feratelUuid) {
+      // Fallback wenn Index nicht ermittelbar: direkter TOSC5-Link
+      var slugFb = item.slug || '';
+      tagRow += '<a class="btn-action btn-gpx" href="https://www.westerwald.info/tosc5/unterkuenfte?limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6#/unterkuenfte/RPT/' + encodeURIComponent(item.feratelUuid) + (slugFb ? '/' + encodeURIComponent(slugFb) : '') + '" target="_blank" rel="noopener">🛏️ Verfügbarkeit prüfen</a>';
     }
     hatTags = true;
   }
@@ -5152,6 +5164,9 @@ function _unterkuenfte_konvertiereAlle() {
   if (!alle.length) return;
   var konv = alle.map(_unterkuenfte_konvertiereEine);
   konv.sort(function(a, b) { return a.name.localeCompare(b.name, 'de'); });
+  // Index nach dem Sortieren setzen, damit die Anfrage-Maske ueber #unterkunft-anfrage/<idx>
+  // den richtigen Eintrag findet.
+  for (var i = 0; i < konv.length; i++) konv[i]._globalIdx = i;
   window.DATA_UNTERKUENFTE_DH = konv;
   console.log('[Unterkuenfte DATAHUB→alt-Schema] ' + konv.length
     + ' Unterkuenfte in DATA_UNTERKUENFTE_DH eingespielt.');
@@ -5992,4 +6007,138 @@ function _slideshowKeyHandler(e) {
 // inline als JSON tragen.
 function oeffneAktiveSlideshow() {
   oeffneSlideshow(window._aktiveBilder || [], 0);
+}
+
+
+// ════════════════════════════════════════════════════════════════════════
+// VERFUEGBARKEITS-ANFRAGE: Eigene Eingabe-Maske statt iFrame.
+// Drei Wege zur Anfrage je nach verfuegbaren Kontaktdaten:
+//   1. E-Mail (mailto:)  - Vermieter bekommt die Anfrage direkt
+//   2. Telefon (tel:)    - native Anruf-App des Geraets
+//   3. Online-Buchung    - TOSC5 mit best-effort URL-Parametern fuer Datum
+// ════════════════════════════════════════════════════════════════════════
+function renderUnterkunftAnfrage(ziel, idx) {
+  var alle = window.DATA_UNTERKUENFTE_DH || [];
+  var item = (idx >= 0 && idx < alle.length) ? alle[idx] : null;
+  if (!item || !item.feratelUuid) {
+    ziel.innerHTML = navBar('home', '<strong>Verfügbarkeit</strong>')
+      + '<div class="hinweis">Keine Buchungs-ID hinterlegt.</div>';
+    return;
+  }
+
+  function isoDate(d) {
+    var pad = function(n) { return String(n).padStart(2,'0'); };
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  var heute = new Date();
+  var morgen = new Date(heute.getTime() + 24*60*60*1000);
+  var inEinerWoche = new Date(heute.getTime() + 8*24*60*60*1000);
+  var defaultAn = isoDate(morgen);
+  var defaultAb = isoDate(inEinerWoche);
+  var minDate = isoDate(heute);
+
+  // iFrame-ID merken, damit der Reload-Handler ihn findet
+  var iframeId = 'tosc5-frame';
+  window._aktivesAnfrageItem = { idx: idx, item: item };
+
+  // Initiale URL mit Default-Daten -- TOSC5 erkennt manche Parameter evtl.,
+  // bei Bedarf mit Mailbox an Feratel/Martin Weier klären welche genau.
+  var initialUrl = baueTosc5Url(item, defaultAn, defaultAb, 2, 0);
+
+  ziel.innerHTML =
+    navBar('detail/unterkunft/tourismus-unterkuenfte_' + idx, 'Verfügbarkeit prüfen')
+
+    // Schlanke Eingabe-Leiste oben
+    + '<div class="anfrage-bar">'
+    +   '<div class="anfrage-bar-row">'
+    +     '<div class="anfrage-bar-feld">'
+    +       '<label for="anf-an">Anreise</label>'
+    +       '<input type="date" id="anf-an" value="' + defaultAn + '" min="' + minDate + '">'
+    +     '</div>'
+    +     '<div class="anfrage-bar-feld">'
+    +       '<label for="anf-ab">Abreise</label>'
+    +       '<input type="date" id="anf-ab" value="' + defaultAb + '" min="' + minDate + '">'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="anfrage-bar-row anfrage-bar-row-pers">'
+    +     '<div class="anfrage-bar-feld">'
+    +       '<label for="anf-erw">Erw.</label>'
+    +       '<input type="number" id="anf-erw" value="2" min="1" max="20" inputmode="numeric">'
+    +     '</div>'
+    +     '<div class="anfrage-bar-feld">'
+    +       '<label for="anf-kin">Kinder</label>'
+    +       '<input type="number" id="anf-kin" value="0" min="0" max="10" inputmode="numeric">'
+    +     '</div>'
+    +     '<button type="button" class="anfrage-bar-btn" onclick="aktualisiereAnfrageIframe()">↻ Anwenden</button>'
+    +   '</div>'
+    + '</div>'
+
+    // iFrame mit TOSC5
+    + '<div class="buchung-iframe-wrap">'
+    +   '<iframe id="' + iframeId + '" class="buchung-iframe" src="' + escapeHtml(initialUrl) + '" '
+    +     'title="Verfügbarkeit prüfen" allow="payment" '
+    +     'referrerpolicy="no-referrer-when-downgrade"></iframe>'
+    +   '<a class="buchung-neuer-tab" href="' + escapeHtml(initialUrl) + '" '
+    +     'target="_blank" rel="noopener" '
+    +     'id="anfrage-tab-btn" '
+    +     'title="Im neuen Tab öffnen">↗ Vollbild</a>'
+    + '</div>';
+}
+
+// Baut die TOSC5-URL mit allen ueblichen Datums-Parameter-Konventionen.
+// Welche davon Feratel wirklich auswertet ist nicht oeffentlich dokumentiert
+// -- nicht erkannte Schluessel ignoriert TOSC5 still.
+function baueTosc5Url(item, anIso, abIso, erw, kin) {
+  var slug = item.slug || '';
+  // ISO -> DD.MM.YYYY fuer evtl. deutsche Param-Varianten
+  function deDate(iso) {
+    if (!iso) return '';
+    var p = iso.split('-');
+    return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso;
+  }
+  var ddmmyyyyAn = deDate(anIso);
+  var ddmmyyyyAb = deDate(abIso);
+  // Mehrere Param-Konventionen gleichzeitig anhaengen, TOSC5 nimmt was es kennt.
+  var params = [
+    'limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6',
+    'arrival=' + anIso,        'departure=' + abIso,           // Schema.org
+    'arr=' + anIso,            'dep=' + abIso,                 // kurz
+    'dateFrom=' + anIso,       'dateTo=' + abIso,              // generisch
+    'checkIn=' + anIso,        'checkOut=' + abIso,            // Booking/Hotels
+    'von=' + ddmmyyyyAn,       'bis=' + ddmmyyyyAb,            // deutsche Variante
+    'dat_a=' + ddmmyyyyAn,     'dat_d=' + ddmmyyyyAb,          // feratel-interne Vermutung
+    'adults=' + erw,           'children=' + kin,
+    'erwachsene=' + erw,       'kinder=' + kin
+  ].join('&');
+  return 'https://www.westerwald.info/tosc5/unterkuenfte?' + params
+    + '#/unterkuenfte/RPT/' + encodeURIComponent(item.feratelUuid)
+    + (slug ? '/' + encodeURIComponent(slug) : '')
+    + '?useDetailSearch=false';
+}
+
+// Wird beim "Anwenden"-Klick aufgerufen: liest die Eingaben und laedt das
+// iFrame mit neuer URL. So bekommt TOSC5 die aktuellen Daten als URL-Params,
+// und der Cross-Origin-DOM-Block ist umgangen (wir greifen NICHT ins iFrame
+// rein, sondern laden es nur neu).
+function aktualisiereAnfrageIframe() {
+  var ctx = window._aktivesAnfrageItem;
+  if (!ctx || !ctx.item) return;
+  var anEl  = document.getElementById('anf-an');
+  var abEl  = document.getElementById('anf-ab');
+  var erwEl = document.getElementById('anf-erw');
+  var kinEl = document.getElementById('anf-kin');
+  if (!anEl || !abEl) return;
+  var an = anEl.value, ab = abEl.value;
+  if (an && ab && an >= ab) {
+    alert('Bitte ein Abreise-Datum NACH der Anreise wählen.');
+    return;
+  }
+  var erw = parseInt((erwEl && erwEl.value) || '2', 10);
+  var kin = parseInt((kinEl && kinEl.value) || '0', 10);
+  var url = baueTosc5Url(ctx.item, an, ab, erw, kin);
+  var iframe = document.getElementById('tosc5-frame');
+  if (iframe) iframe.src = url;
+  // Vollbild-Link auch updaten
+  var tabBtn = document.getElementById('anfrage-tab-btn');
+  if (tabBtn) tabBtn.href = url;
 }
