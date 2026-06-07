@@ -390,16 +390,46 @@ function router() {
   document.body.classList.toggle('home-page', teile[0] === 'home' || teile[0] === '');
   window.scrollTo(0, 0);
 
+  try {
+    _routerDispatch(ziel, teile);
+  } catch (err) {
+    // Fehler sichtbar machen statt leere Seite
+    console.error('Router-Crash:', err, 'hash=', hash);
+    ziel.innerHTML = '<div style="padding:20px;font-family:monospace;font-size:13px;line-height:1.5;">'
+      + '<h2 style="color:#b00;">Renderer-Fehler</h2>'
+      + '<p>Beim Aufbau der Seite ist ein Fehler aufgetreten:</p>'
+      + '<pre style="background:#fff8dc;padding:10px;border-radius:6px;overflow:auto;">'
+      + (err && err.message ? escapeHtml(String(err.message)) : 'Unbekannter Fehler') + '\n\n'
+      + (err && err.stack ? escapeHtml(String(err.stack).split('\n').slice(0,6).join('\n')) : '')
+      + '</pre>'
+      + '<p>Route: <code>' + escapeHtml(hash) + '</code></p>'
+      + '<p><a href="#home">⌂ Zur Startseite</a></p>'
+      + '</div>';
+  }
+}
+
+function _routerDispatch(ziel, teile) {
   if (teile[0] === 'home' || teile[0] === '') renderHome(ziel);
   else if (teile[0] === 'kategorie' && teile[1]) renderKategorie(ziel, teile[1]);
   else if (teile[0] === 'liste' && teile[1])    renderListe(ziel, teile[1]);
   else if (teile[0] === 'detail' && teile[1] && teile[2]) renderDetail(ziel, teile[1], teile[2]);
   else if (teile[0] === 'karte'  && teile[1] && teile[2]) renderKarte(ziel, teile[1], teile[2]);
   else if (teile[0] === 'karte-liste' && teile[1]) {
-    if (teile[1] === 'veranstaltungen-alle') {
-      renderVeranstaltungenKarte(ziel);
-    } else {
-      renderListenKarte(ziel, teile[1]);
+    try {
+      if (teile[1] === 'veranstaltungen-alle') {
+        renderVeranstaltungenKarte(ziel);
+      } else {
+        renderListenKarte(ziel, teile[1]);
+      }
+    } catch (err) {
+      // Falls eine Karten-Funktion crasht: zeig wenigstens den Fehler sichtbar
+      // statt eine leere Seite, damit Bug-Reports moeglich sind.
+      console.error('Karten-Renderer-Crash:', err);
+      ziel.innerHTML = navBar('home','') + intro('Fehler','')
+        + '<div class="hinweis" style="white-space:pre-wrap;font-family:monospace;font-size:12px;">'
+        + 'Beim Rendern der Karte ist ein Fehler aufgetreten:<br><br>'
+        + escapeHtml(String(err.message || err))
+        + '<br><br>(Bitte Screenshot mitsenden, oder F12 → Konsole)</div>';
     }
   }
   else if (teile[0] === 'unterkunft-buchen' && teile[1]) {
