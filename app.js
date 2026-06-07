@@ -1403,18 +1403,34 @@ function renderWwLit(ziel, slug, l) {
 // ════════════════════════════════════════════════════════════════
 
 // Termin-Filter-State (eigener State)
-var TERMIN_FILTER = { datum: 'alle', bezirk: 'alle', art: 'alle', suche: '' };
+var TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '' };
 window._aktuelleTermine = null;
 
 function termineFilterUI() {
-  function pill(group, val, label) {
-    var aktiv = TERMIN_FILTER[group] === val;
-    return '<button class="filter-pill' + (aktiv ? ' aktiv' : '') + '" '
-      + 'onclick="setzeTerminFilter(\'' + group + '\',\'' + val + '\')">' + label + '</button>';
-  }
+  // Multi-Select-Dropdowns mit "Bestätigen"-Button.
+  // datum: OR-Semantik (heute ODER woche ODER monat...)
+  // bezirk, art: einfache OR-Auswahl
+  var datumOpts = [
+    {key:'heute',  label:'Heute'},
+    {key:'woche',  label:'Diese Woche'},
+    {key:'monat',  label:'Dieser Monat'},
+    {key:'jahr',   label:'Aktuelles Jahr'},
+    {key:'dauer',  label:'Dauerveranstaltungen'}
+  ];
+  var bezirkOpts = [
+    {key:'AK',     label:'Altenkirchen'},
+    {key:'NR',     label:'Neuwied'},
+    {key:'WW',     label:'Westerwald'},
+    {key:'Hessen', label:'Hessen'}
+  ];
+  var artOpts = [
+    {key:'lit',      label:'WW-Lit'},
+    {key:'natur',    label:'Naturerlebnisse'},
+    {key:'sonstige', label:'Sonstige'}
+  ];
+
   var html = '<div class="filter-leiste termine-filter">';
-  // SUCH-FELD: ganz oben, eigene Reihe. value steht aus TERMIN_FILTER.suche
-  // (damit die Suche beim Filter-Pillen-Wechsel nicht verloren geht).
+  // Suchfeld zuerst (bleibt frei eingebbar)
   html += '<div class="filter-gruppe filter-suche-gruppe">'
     + '<input type="search" class="termine-such-input" '
     +   'placeholder="🔍 Veranstaltung suchen…" '
@@ -1422,30 +1438,70 @@ function termineFilterUI() {
     +   'oninput="setzeTermineSuche(this.value)" '
     +   'autocomplete="off">'
     + '</div>';
-  html += '<div class="filter-gruppe"><span class="filter-label">📅 Datum:</span>'
-    + pill('datum','alle','Alle')
-    + pill('datum','heute','Heute')
-    + pill('datum','woche','Diese Woche')
-    + pill('datum','monat','Dieser Monat')
-    + pill('datum','jahr','Aktuelles Jahr')
-    + pill('datum','dauer','Dauerveranstaltungen')
-    + '</div>';
-  // Region: in einer Zeile, kompakte Labels
-  html += '<div class="filter-gruppe filter-bezirk"><span class="filter-label">📍 Region:</span>'
-    + pill('bezirk','alle','Alle')
-    + pill('bezirk','AK','Altenkirchen')
-    + pill('bezirk','NR','Neuwied')
-    + pill('bezirk','WW','Westerwald')
-    + pill('bezirk','Hessen','Hessen')
-    + '</div>';
-  html += '<div class="filter-gruppe"><span class="filter-label">🎭 Art:</span>'
-    + pill('art','alle','Alle')
-    + pill('art','lit','WW-Lit')
-    + pill('art','natur','Naturerlebnisse')
-    + pill('art','sonstige','Sonstige')
-    + '</div>';
+  html += renderFilterDropdownTermine('Datum',  datumOpts,  TERMIN_FILTER.datum,  'datum',  '📅');
+  html += renderFilterDropdownTermine('Region', bezirkOpts, TERMIN_FILTER.bezirk, 'bezirk', '📍');
+  html += renderFilterDropdownTermine('Art',    artOpts,    TERMIN_FILTER.art,    'art',    '🎭');
   html += '</div>';
   return html;
+}
+
+function renderFilterDropdownTermine(label, opts, stateObj, group, icon) {
+  icon = icon || '';
+  var aktivKeys = Object.keys(stateObj);
+  var summary;
+  if (aktivKeys.length === 0)               summary = '<em>nicht gefiltert</em>';
+  else if (aktivKeys.length === opts.length) summary = 'Alle';
+  else if (aktivKeys.length <= 2) {
+    var names = [];
+    for (var i = 0; i < opts.length; i++) if (stateObj[opts[i].key]) names.push(opts[i].label);
+    summary = names.join(', ');
+  } else summary = aktivKeys.length + ' gewählt';
+
+  var ddId = 'tfd-' + group + '-' + Math.random().toString(36).slice(2, 7);
+  var html = '<div class="filter-dropdown">'
+    + '<button type="button" class="filter-dropdown-head" onclick="toggleFilterDropdown(\'' + ddId + '\')">'
+    +   '<span class="filter-dropdown-label">' + icon + ' ' + escapeHtml(label) + '</span>'
+    +   '<span class="filter-dropdown-summary">' + summary + '</span>'
+    +   '<span class="filter-dropdown-arrow">▾</span>'
+    + '</button>'
+    + '<div class="filter-dropdown-panel" id="' + ddId + '">'
+    +   '<div class="filter-dropdown-opts">';
+  for (var j = 0; j < opts.length; j++) {
+    var o = opts[j];
+    html += '<label class="filter-dropdown-check">'
+      + '<input type="checkbox"' + (stateObj[o.key] ? ' checked' : '') + ' data-dd-key="' + escapeHtml(o.key) + '"> '
+      + escapeHtml(o.label) + '</label>';
+  }
+  html += '</div>'
+    +   '<div class="filter-dropdown-bar">'
+    +     '<button type="button" class="filter-dropdown-clear" onclick="filterDropdownClear(\'' + ddId + '\')">Zurücksetzen</button>'
+    +     '<button type="button" class="filter-dropdown-confirm" onclick="filterDropdownConfirmTermine(\'' + ddId + '\',\'' + group + '\')">Bestätigen</button>'
+    +   '</div>'
+    + '</div></div>';
+  return html;
+}
+
+function filterDropdownConfirmTermine(id, group) {
+  var panel = document.getElementById(id);
+  if (!panel) return;
+  if (TERMIN_FILTER[group]) {
+    for (var k in TERMIN_FILTER[group]) delete TERMIN_FILTER[group][k];
+    var checks = panel.querySelectorAll('input[type="checkbox"]');
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].checked) TERMIN_FILTER[group][checks[i].getAttribute('data-dd-key')] = true;
+    }
+  }
+  panel.classList.remove('offen');
+  // Termin-Refresh via gespeichertem Context auslösen
+  if (window._aktuelleTermine && typeof setzeTerminFilter === 'function') {
+    // Trigger re-render
+    var l = window._aktuelleTermine;
+    var fLeiste = document.getElementById('termine-filter-wrapper');
+    var liste   = document.getElementById('termine-liste');
+    if (fLeiste) fLeiste.innerHTML = termineFilterUI();
+    if (liste)   liste.innerHTML = baueTermineInhalt(l.slug, l.l);
+    if (typeof aktualisiereTermineTreffer === 'function') aktualisiereTermineTreffer(l.l);
+  }
 }
 
 function setzeTerminFilter(group, val) {
@@ -1514,35 +1570,55 @@ function termineFilterAnwenden(items) {
     // Mehrtaegig = "bis [Datum]"-Eintrag (Festival, Ausstellung, Kurs ueber mehrere Tage)
     var istMehrtaegig = !!(item.datumBisIso && item.datumBisIso !== item.datumIso);
 
-    if (TERMIN_FILTER.datum === 'dauer') {
-      // Rubrik "Dauerveranstaltungen": NUR mehrtaegige Events (alle, egal ob laufend oder erst startend)
+    // Mehrtaegig = "bis [Datum]"-Eintrag (Festival, Ausstellung, Kurs ueber mehrere Tage)
+    var istMehrtaegig = !!(item.datumBisIso && item.datumBisIso !== item.datumIso);
+
+    // Multi-Select-Datum mit OR-Semantik: leer oder alle aktiv = kein Filter,
+    // sonst muss item zu MINDESTENS einem gewaehlten Bucket passen.
+    var datumKeys = Object.keys(TERMIN_FILTER.datum);
+    var datumFilterAktiv = datumKeys.length > 0 && datumKeys.length < 5;
+    // Sonderfall: nur 'dauer' aktiv → nur mehrtägige
+    var nurDauer = datumKeys.length === 1 && datumKeys[0] === 'dauer';
+    // Wenn 'dauer' NICHT in der Auswahl ist (und Filter aktiv): mehrtaegige raus
+    var dauerErlaubt = !datumFilterAktiv || TERMIN_FILTER.datum.dauer;
+
+    if (nurDauer) {
       if (!istMehrtaegig) return false;
-    } else if (TERMIN_FILTER.datum === 'alle') {
-      // "Alle": mehrtaegige Events ausblenden -- die haben eine eigene Rubrik.
-      // So werden die Einzeltermine nicht von "laeuft bis..."-Eintraegen ueberschwemmt.
+    } else if (!datumFilterAktiv && datumKeys.length === 0) {
+      // Kein Datum-Filter (Default): mehrtaegige ausblenden (eigene Rubrik)
       if (istMehrtaegig) return false;
-    } else {
-      // heute/woche/monat/jahr: Ueberlappung Event-Zeitraum mit Period-Zeitraum.
-      // Mehrtaegige Events erscheinen NUR, wenn sie aktuell laufen -- ein
-      // Festival, das erst in 3 Monaten startet, wird in "Heute" rausgefiltert,
-      // ein laufendes Festival (03.-06.06., heute 04.06.) bleibt drin.
-      var periodEnde;
-      if (TERMIN_FILTER.datum === 'heute')      periodEnde = heuteStr;
-      else if (TERMIN_FILTER.datum === 'woche') periodEnde = sonntagStr;
-      else if (TERMIN_FILTER.datum === 'monat') periodEnde = monatsendeStr;
-      else if (TERMIN_FILTER.datum === 'jahr')  periodEnde = jahresende;
-      // Event-Start <= Period-Ende (Event hat im Period oder davor begonnen).
-      // Event-Ende >= heuteStr ist oben schon geprueft.
-      if (d > periodEnde) return false;
+    } else if (!dauerErlaubt && istMehrtaegig) {
+      return false;
+    } else if (datumFilterAktiv) {
+      // OR-Match gegen alle gewaehlten Buckets
+      var matched = false;
+      var buckets = {
+        'heute': heuteStr, 'woche': sonntagStr,
+        'monat': monatsendeStr, 'jahr': jahresende
+      };
+      for (var bk in TERMIN_FILTER.datum) {
+        if (bk === 'dauer') {
+          if (istMehrtaegig) { matched = true; break; }
+        } else if (buckets[bk]) {
+          if (d <= buckets[bk]) { matched = true; break; }
+        }
+      }
+      if (!matched) return false;
     }
 
-    if (TERMIN_FILTER.bezirk !== 'alle' && item.bezirk !== TERMIN_FILTER.bezirk) return false;
-    if (TERMIN_FILTER.art !== 'alle') {
+    // bezirk: Multi-Select
+    var bezKeys = Object.keys(TERMIN_FILTER.bezirk);
+    var bezFilterAktiv = bezKeys.length > 0 && bezKeys.length < 4;
+    if (bezFilterAktiv && !TERMIN_FILTER.bezirk[item.bezirk || '']) return false;
+
+    // art: Multi-Select
+    var artKeys = Object.keys(TERMIN_FILTER.art);
+    var artFilterAktiv = artKeys.length > 0 && artKeys.length < 3;
+    if (artFilterAktiv) {
       var istLit = (item.quelle === 'lit');
       var istNatur = (item.quelle === 'natur');
-      if (TERMIN_FILTER.art === 'lit'      && !istLit)   return false;
-      if (TERMIN_FILTER.art === 'natur'    && !istNatur) return false;
-      if (TERMIN_FILTER.art === 'sonstige' && (istLit || istNatur)) return false;
+      var itemArtKey = istLit ? 'lit' : (istNatur ? 'natur' : 'sonstige');
+      if (!TERMIN_FILTER.art[itemArtKey]) return false;
     }
     // Volltextsuche ueber Titel, Ort und Beschreibung -- case-insensitive,
     // Leerzeichen-tolerant. Wird zuletzt geprueft, weil sie typisch
@@ -1644,7 +1720,7 @@ function aktualisiereTermineTreffer(l) {
 }
 
 function renderTermine(ziel, slug, l) {
-  TERMIN_FILTER = { datum: 'alle', bezirk: 'alle', art: 'alle', suche: '' };
+  TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '' };
   window._aktuelleTermine = { slug: slug, info: l };
 
   // Einmaliges Deduplizieren bei erstem Aufruf — schützt vor Mehrfach-Laden
@@ -2618,7 +2694,7 @@ function renderUnterkunftDetail(ziel, item, info, zurueck, typ) {
 // AUSFLUGSZIELE / UNTERKÜNFTE: Liste mit Typ-Filter + Suche
 // ════════════════════════════════════════════════════════════════
 
-var GEFILTERT_STATE = { typ: 'alle', bezirk: 'alle', suche: '' };
+var GEFILTERT_STATE = { typ: {}, bezirk: {}, suche: '' };
 window._aktuelleGefiltert = null;
 
 // Heuristik PLZ -> Verwaltungsbezirk (analog zu Veranstaltungen)
@@ -2630,33 +2706,20 @@ function plzZuBezirk(plz) {
 }
 
 function gefiltertFilterUI(l) {
+  // Multi-Select-Dropdowns mit "Bestätigen"-Button.
+  var typOpts = (l.filterTypen || []).filter(function(t) { return t.key !== 'alle'; });
+  var bezOpts = (l.filterBezirke || []).filter(function(b) { return b.key !== 'alle'; });
   var html = '<div class="filter-leiste gefiltert-filter">';
 
-  // Erste Zeile: Typ-Filter (Art)
-  html += '<div class="filter-gruppe filter-bezirk">';
-  html += '<span class="filter-label">' + escapeHtml(l.filterLabel || 'Typ') + ':</span>';
-  for (var i = 0; i < l.filterTypen.length; i++) {
-    var t = l.filterTypen[i];
-    var aktiv = GEFILTERT_STATE.typ === t.key;
-    html += '<button class="filter-pill' + (aktiv ? ' aktiv' : '') + '" '
-      + 'onclick="setzeGefiltertFilter(\'typ\',\'' + t.key + '\')">' + escapeHtml(t.label) + '</button>';
+  if (typOpts.length) {
+    html += renderFilterDropdownListe(
+      l.filterLabel || 'Art', typOpts, GEFILTERT_STATE.typ, 'typ', '🏷️');
   }
-  html += '</div>';
-
-  // Zweite Zeile: Bezirks-Filter (falls definiert)
-  if (l.filterBezirke && l.filterBezirke.length) {
-    html += '<div class="filter-gruppe filter-bezirk">';
-    html += '<span class="filter-label">📍 Region:</span>';
-    for (var j = 0; j < l.filterBezirke.length; j++) {
-      var b = l.filterBezirke[j];
-      var aktivB = GEFILTERT_STATE.bezirk === b.key;
-      html += '<button class="filter-pill' + (aktivB ? ' aktiv' : '') + '" '
-        + 'onclick="setzeGefiltertFilter(\'bezirk\',\'' + b.key + '\')">' + escapeHtml(b.label) + '</button>';
-    }
-    html += '</div>';
+  if (bezOpts.length) {
+    html += renderFilterDropdownListe('Region', bezOpts, GEFILTERT_STATE.bezirk, 'bezirk', '📍');
   }
 
-  // Suche
+  // Suche bleibt als normales Eingabefeld (kein Sinn fuer Dropdown)
   html += '<div class="filter-gruppe filter-suche">';
   html += '<input type="text" class="filter-such-input" placeholder="🔍 Suchen…" '
     + 'value="' + escapeHtml(GEFILTERT_STATE.suche) + '" '
@@ -2664,6 +2727,59 @@ function gefiltertFilterUI(l) {
   html += '</div>';
   html += '</div>';
   return html;
+}
+
+// Dropdown fuer die Listen-Filter (gefiltertFilterUI). Eigene Variante,
+// weil der State auf GEFILTERT_STATE liegt (nicht auf _listenKarteState).
+function renderFilterDropdownListe(label, opts, stateObj, group, icon) {
+  icon = icon || '';
+  var aktivKeys = Object.keys(stateObj);
+  var summary;
+  if (aktivKeys.length === 0)               summary = '<em>nicht gefiltert</em>';
+  else if (aktivKeys.length === opts.length) summary = 'Alle';
+  else if (aktivKeys.length <= 2) {
+    var names = [];
+    for (var i = 0; i < opts.length; i++) if (stateObj[opts[i].key]) names.push(opts[i].label);
+    summary = names.join(', ');
+  } else summary = aktivKeys.length + ' gewählt';
+
+  var ddId = 'lfd-' + group + '-' + Math.random().toString(36).slice(2, 7);
+  var html = '<div class="filter-dropdown">'
+    + '<button type="button" class="filter-dropdown-head" onclick="toggleFilterDropdown(\'' + ddId + '\')">'
+    +   '<span class="filter-dropdown-label">' + icon + ' ' + escapeHtml(label) + '</span>'
+    +   '<span class="filter-dropdown-summary">' + summary + '</span>'
+    +   '<span class="filter-dropdown-arrow">▾</span>'
+    + '</button>'
+    + '<div class="filter-dropdown-panel" id="' + ddId + '">'
+    +   '<div class="filter-dropdown-opts">';
+  for (var j = 0; j < opts.length; j++) {
+    var o = opts[j];
+    html += '<label class="filter-dropdown-check">'
+      + '<input type="checkbox"' + (stateObj[o.key] ? ' checked' : '') + ' data-dd-key="' + escapeHtml(o.key) + '"> '
+      + escapeHtml(o.label) + '</label>';
+  }
+  html += '</div>'
+    +   '<div class="filter-dropdown-bar">'
+    +     '<button type="button" class="filter-dropdown-clear" onclick="filterDropdownClear(\'' + ddId + '\')">Zurücksetzen</button>'
+    +     '<button type="button" class="filter-dropdown-confirm" onclick="filterDropdownConfirmListe(\'' + ddId + '\',\'' + group + '\')">Bestätigen</button>'
+    +   '</div>'
+    + '</div></div>';
+  return html;
+}
+
+// Confirm-Handler fuer Listen-Dropdowns: schreibt in GEFILTERT_STATE und rerendert.
+function filterDropdownConfirmListe(id, group) {
+  var panel = document.getElementById(id);
+  if (!panel) return;
+  if (GEFILTERT_STATE[group]) {
+    for (var k in GEFILTERT_STATE[group]) delete GEFILTERT_STATE[group][k];
+    var checks = panel.querySelectorAll('input[type="checkbox"]');
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].checked) GEFILTERT_STATE[group][checks[i].getAttribute('data-dd-key')] = true;
+    }
+  }
+  panel.classList.remove('offen');
+  refreshGefiltertView();
 }
 
 function setzeGefiltertFilter(group, key) {
@@ -2730,13 +2846,21 @@ function baueGefiltertListe(slug, l) {
   var rohdaten = window[l.datenName] || [];
   var suche = (GEFILTERT_STATE.suche || '').toLowerCase().trim();
 
+  // Multi-Select-Filter: leer = kein Filter, alle aktiv = kein Filter
+  var typKeys = Object.keys(GEFILTERT_STATE.typ);
+  var bezKeys = Object.keys(GEFILTERT_STATE.bezirk);
+  var typOptsCount = (l.filterTypen || []).filter(function(t) { return t.key !== 'alle'; }).length;
+  var bezOptsCount = (l.filterBezirke || []).filter(function(b) { return b.key !== 'alle'; }).length;
+  var typFilterAktiv = typKeys.length > 0 && typKeys.length < typOptsCount;
+  var bezFilterAktiv = bezKeys.length > 0 && bezKeys.length < bezOptsCount;
+
   var gefiltert = rohdaten.filter(function(item) {
-    if (GEFILTERT_STATE.typ !== 'alle') {
-      if (gefiltertItemTyp(item, l) !== GEFILTERT_STATE.typ) return false;
+    if (typFilterAktiv) {
+      if (!GEFILTERT_STATE.typ[gefiltertItemTyp(item, l)]) return false;
     }
-    if (GEFILTERT_STATE.bezirk !== 'alle') {
+    if (bezFilterAktiv) {
       var bez = plzZuBezirk(item.plz);
-      if (bez !== GEFILTERT_STATE.bezirk) return false;
+      if (!GEFILTERT_STATE.bezirk[bez]) return false;
     }
     if (suche) {
       var blob = ((item.name || '') + ' ' + (item.town || '') + ' ' + (item.ort || '') + ' ' + (item.region || '') + ' ' + (item.topic || '') + ' ' + (item.mainTopic || '')).toLowerCase();
@@ -2787,7 +2911,7 @@ function baueGefiltertListe(slug, l) {
 }
 
 function renderGefiltertListe(ziel, slug, l) {
-  GEFILTERT_STATE = { typ: 'alle', bezirk: 'alle', suche: '' };
+  GEFILTERT_STATE = { typ: {}, bezirk: {}, suche: '' };
   window._aktuelleGefiltert = { slug: slug, info: l };
 
   var rohdaten = window[l.datenName] || [];
@@ -5359,10 +5483,8 @@ function renderListenKarte(ziel, slug) {
     };
   }
 
-  var mapId = 'lkarte-' + Math.random().toString(36).slice(2);
-
-  // Filter-Sektion: Checkboxen fuer Typen + Bezirke
-  // INITIAL alle leer (nur wenn State es anders sagt = restore)
+  // Filter-Sektion: Dropdowns mit "Bestätigen"-Button pro Gruppe.
+  // INITIAL alle Checkboxen leer (oder restored aus State).
   var typOpts = (info.filterTypen || []).filter(function(t) { return t.key !== 'alle'; });
   var bezOpts = (info.filterBezirke || []).filter(function(b) { return b.key !== 'alle'; });
 
@@ -5375,32 +5497,14 @@ function renderListenKarte(ziel, slug) {
     + '<div class="listen-karte-filter">';
 
   if (typOpts.length) {
-    html += '<div class="listen-karte-filter-gruppe">'
-      + '<span class="listen-karte-filter-label">' + escapeHtml(info.filterLabel || 'Art') + ':</span>';
-    for (var i = 0; i < typOpts.length; i++) {
-      var t = typOpts[i];
-      var checkedAttr = state.typ[t.key] ? ' checked' : '';
-      html += '<label class="listen-karte-check">'
-        + '<input type="checkbox"' + checkedAttr + ' data-lkfilter="typ" data-lkkey="' + escapeHtml(t.key) + '"> '
-        + escapeHtml(t.label) + '</label>';
-    }
-    html += '</div>';
+    html += renderFilterDropdown(
+      info.filterLabel || 'Art',
+      typOpts, state.typ, 'typ', slug, '🏷️');
   }
   if (bezOpts.length && modus === 'poi') {
-    // Bezirks-Filter nur bei POIs sinnvoll (Touren haben oft keine PLZ am Item-Level)
-    html += '<div class="listen-karte-filter-gruppe">'
-      + '<span class="listen-karte-filter-label">📍 Region:</span>';
-    for (var j = 0; j < bezOpts.length; j++) {
-      var b = bezOpts[j];
-      var checkedAttrB = state.bezirk[b.key] ? ' checked' : '';
-      html += '<label class="listen-karte-check">'
-        + '<input type="checkbox"' + checkedAttrB + ' data-lkfilter="bezirk" data-lkkey="' + escapeHtml(b.key) + '"> '
-        + escapeHtml(b.label) + '</label>';
-    }
-    html += '</div>';
+    html += renderFilterDropdown('Region', bezOpts, state.bezirk, 'bezirk', slug, '📍');
   }
-
-  html += '<div class="listen-karte-filter-gruppe">'
+  html += '<div class="lk-zaehler-row">'
     + '<small id="' + mapId + '-zaehler">'
     + mitGeo.length + ' Einträge mit Standort'
     + (ohneGeoCount > 0 ? ' (' + ohneGeoCount + ' ohne Geo-Daten)' : '')
@@ -5418,6 +5522,125 @@ function renderListenKarte(ziel, slug) {
   ladeKartenPlugins().then(function() {
     initListenKarte(mapId, slug, info, mitGeo, modus, state);
   });
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+// FILTER-DROPDOWN: Wiederverwendbare Komponente
+// Klick auf Header oeffnet ein Panel mit Checkboxen + Bestaetigen-Button.
+// "Bestaetigen" wendet die Auswahl an und schliesst das Panel.
+// Mehrere aktive Werte: Header zeigt sie kommagetrennt (oder "N gewählt").
+// ──────────────────────────────────────────────────────────────────────
+function renderFilterDropdown(label, opts, stateObj, group, slug, icon) {
+  icon = icon || '';
+  // Zaehlbare Zusammenfassung fuer den Dropdown-Header
+  var aktivKeys = Object.keys(stateObj);
+  var summary;
+  if (aktivKeys.length === 0) {
+    summary = '<em>nicht gefiltert</em>';
+  } else if (aktivKeys.length === opts.length) {
+    summary = 'Alle';
+  } else if (aktivKeys.length <= 2) {
+    // Bei 1-2 Eintraegen Namen anzeigen
+    var names = [];
+    for (var i = 0; i < opts.length; i++) {
+      if (stateObj[opts[i].key]) names.push(opts[i].label);
+    }
+    summary = names.join(', ');
+  } else {
+    summary = aktivKeys.length + ' gewählt';
+  }
+
+  var dropdownId = 'fd-' + group + '-' + Math.random().toString(36).slice(2, 7);
+  var html = '<div class="filter-dropdown" data-filter-dropdown="' + dropdownId + '">'
+    + '<button type="button" class="filter-dropdown-head" onclick="toggleFilterDropdown(\'' + dropdownId + '\')">'
+    +   '<span class="filter-dropdown-label">' + icon + ' ' + escapeHtml(label) + '</span>'
+    +   '<span class="filter-dropdown-summary">' + summary + '</span>'
+    +   '<span class="filter-dropdown-arrow">▾</span>'
+    + '</button>'
+    + '<div class="filter-dropdown-panel" id="' + dropdownId + '">'
+    +   '<div class="filter-dropdown-opts">';
+  for (var j = 0; j < opts.length; j++) {
+    var o = opts[j];
+    var checked = stateObj[o.key] ? ' checked' : '';
+    html += '<label class="filter-dropdown-check">'
+      + '<input type="checkbox"' + checked + ' data-dd-key="' + escapeHtml(o.key) + '"> '
+      + escapeHtml(o.label) + '</label>';
+  }
+  html += '</div>'
+    +   '<div class="filter-dropdown-bar">'
+    +     '<button type="button" class="filter-dropdown-clear" onclick="filterDropdownClear(\'' + dropdownId + '\')">Zurücksetzen</button>'
+    +     '<button type="button" class="filter-dropdown-confirm" onclick="filterDropdownConfirm(\'' + dropdownId + '\',\'' + group + '\',\'' + escapeHtml(slug) + '\')">Bestätigen</button>'
+    +   '</div>'
+    + '</div></div>';
+  return html;
+}
+
+function toggleFilterDropdown(id) {
+  // Andere offene Dropdowns schliessen
+  var alle = document.querySelectorAll('.filter-dropdown-panel.offen');
+  for (var i = 0; i < alle.length; i++) {
+    if (alle[i].id !== id) alle[i].classList.remove('offen');
+  }
+  var panel = document.getElementById(id);
+  if (panel) panel.classList.toggle('offen');
+}
+
+function filterDropdownClear(id) {
+  var panel = document.getElementById(id);
+  if (!panel) return;
+  var checks = panel.querySelectorAll('input[type="checkbox"]');
+  for (var i = 0; i < checks.length; i++) checks[i].checked = false;
+}
+
+function filterDropdownConfirm(id, group, slug) {
+  var panel = document.getElementById(id);
+  if (!panel) return;
+  // State updaten (Listen-Karte): _listenKarteState[slug][group] = {key: true, ...}
+  var lkState = window._listenKarteState && window._listenKarteState[slug];
+  if (lkState && lkState[group]) {
+    // alte Werte clearen
+    for (var k in lkState[group]) delete lkState[group][k];
+    var checks = panel.querySelectorAll('input[type="checkbox"]');
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].checked) {
+        lkState[group][checks[i].getAttribute('data-dd-key')] = true;
+      }
+    }
+  }
+  // Panel schliessen
+  panel.classList.remove('offen');
+  // Refresh ausloesen via globalen Callback (siehe initListenKarte)
+  if (typeof window._listenKarteRefresh === 'function') {
+    window._listenKarteRefresh();
+  }
+  // Summary im Header aktualisieren: am einfachsten den Renderer komplett
+  // neu aufrufen geht hier nicht. Stattdessen Summary in-place updaten.
+  _updateFilterDropdownSummary(id, group, slug);
+}
+
+// Aktualisiert den Summary-Text im Dropdown-Header nach Bestaetigen.
+function _updateFilterDropdownSummary(id, group, slug) {
+  var panel = document.getElementById(id);
+  if (!panel) return;
+  var head = panel.parentNode.querySelector('.filter-dropdown-summary');
+  if (!head) return;
+  var checked = panel.querySelectorAll('input[type="checkbox"]:checked');
+  var total = panel.querySelectorAll('input[type="checkbox"]').length;
+  if (checked.length === 0) {
+    head.innerHTML = '<em>nicht gefiltert</em>';
+  } else if (checked.length === total) {
+    head.textContent = 'Alle';
+  } else if (checked.length <= 2) {
+    var labels = [];
+    for (var i = 0; i < checked.length; i++) {
+      var lab = checked[i].parentNode.textContent.trim();
+      labels.push(lab);
+    }
+    head.textContent = labels.join(', ');
+  } else {
+    head.textContent = checked.length + ' gewählt';
+  }
 }
 
 
@@ -5536,19 +5759,9 @@ function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
     }
   }
 
-  // Event-Listener fuer alle Filter-Checkboxen: Update State + Refresh
-  var allChecks = document.querySelectorAll('[data-lkfilter]');
-  for (var c = 0; c < allChecks.length; c++) {
-    (function(cb) {
-      cb.addEventListener('change', function() {
-        var grp = cb.getAttribute('data-lkfilter');   // 'typ' oder 'bezirk'
-        var key = cb.getAttribute('data-lkkey');
-        if (cb.checked) state[grp][key] = true;
-        else delete state[grp][key];
-        refreshMarker();
-      });
-    })(allChecks[c]);
-  }
+  // Refresh als globalen Callback hinterlegen, damit der Dropdown-Bestaetigen-Button
+  // ihn aufrufen kann (siehe filterDropdownConfirm()).
+  window._listenKarteRefresh = refreshMarker;
 
   refreshMarker();
   // Layout-Race-Condition: Karte braucht eine Pause, bis das Wrap-Element seine
@@ -5642,9 +5855,8 @@ function renderVeranstaltungenKarte(ziel) {
   }
 
   var mapId = 'vkarte-' + Math.random().toString(36).slice(2);
-  var info = { breadcrumb: 'Veranstaltungen', titel: 'Veranstaltungen' };
 
-  // UI bauen
+  // Filter-Optionen
   var datumOpts = [
     {key:'heute',  label:'Heute'},
     {key:'woche',  label:'Diese Woche'},
@@ -5665,20 +5877,6 @@ function renderVeranstaltungenKarte(ziel) {
     {key:'sonstige', label:'Sonstige'}
   ];
 
-  function renderCheckGruppe(label, opts, group) {
-    var html = '<div class="listen-karte-filter-gruppe">'
-      + '<span class="listen-karte-filter-label">' + label + ':</span>';
-    for (var i = 0; i < opts.length; i++) {
-      var o = opts[i];
-      var checkedAttr = state[group][o.key] ? ' checked' : '';
-      html += '<label class="listen-karte-check">'
-        + '<input type="checkbox"' + checkedAttr + ' data-vkfilter="' + group + '" data-vkkey="' + escapeHtml(o.key) + '"> '
-        + escapeHtml(o.label) + '</label>';
-    }
-    html += '</div>';
-    return html;
-  }
-
   var html =
     '<div class="sticky-region">'
     + navBar('liste/veranstaltungen-alle', 'Veranstaltungen › <strong>Karte</strong>')
@@ -5686,10 +5884,10 @@ function renderVeranstaltungenKarte(ziel) {
     + '</div>'
     + '<div class="listen-karte-wrap">'
     + '<div class="listen-karte-filter">'
-    + renderCheckGruppe('📅 Datum',  datumOpts,  'datum')
-    + renderCheckGruppe('📍 Region', bezirkOpts, 'bezirk')
-    + renderCheckGruppe('🎭 Art',    artOpts,    'art')
-    + '<div class="listen-karte-filter-gruppe">'
+    + renderFilterDropdownVK('Datum', datumOpts, state.datum, 'datum', '📅')
+    + renderFilterDropdownVK('Region', bezirkOpts, state.bezirk, 'bezirk', '📍')
+    + renderFilterDropdownVK('Art', artOpts, state.art, 'art', '🎭')
+    + '<div class="lk-zaehler-row">'
     +   '<small id="' + mapId + '-zaehler">'
     +     mitGeo.length + ' Veranstaltungen mit Standort'
     +     (ohneGeoCount > 0 ? ' (' + ohneGeoCount + ' ohne Geo-Daten)' : '')
@@ -5705,6 +5903,62 @@ function renderVeranstaltungenKarte(ziel) {
   ladeKartenPlugins().then(function() {
     initVeranstaltungenKarte(mapId, mitGeo, state);
   });
+}
+
+
+// Wie renderFilterDropdown, aber fuer die Veranstaltungs-Karte (eigener
+// State-Pfad). Wir koennten beides vereinheitlichen, aber pragmatisch ist
+// die zweite Variante hier knapp und entkoppelt vom Listen-Karte-Pfad.
+function renderFilterDropdownVK(label, opts, stateObj, group, icon) {
+  icon = icon || '';
+  var aktivKeys = Object.keys(stateObj);
+  var summary;
+  if (aktivKeys.length === 0)               summary = '<em>nicht gefiltert</em>';
+  else if (aktivKeys.length === opts.length) summary = 'Alle';
+  else if (aktivKeys.length <= 2) {
+    var names = [];
+    for (var i = 0; i < opts.length; i++) if (stateObj[opts[i].key]) names.push(opts[i].label);
+    summary = names.join(', ');
+  } else summary = aktivKeys.length + ' gewählt';
+
+  var dropdownId = 'vfd-' + group + '-' + Math.random().toString(36).slice(2, 7);
+  var html = '<div class="filter-dropdown">'
+    + '<button type="button" class="filter-dropdown-head" onclick="toggleFilterDropdown(\'' + dropdownId + '\')">'
+    +   '<span class="filter-dropdown-label">' + icon + ' ' + escapeHtml(label) + '</span>'
+    +   '<span class="filter-dropdown-summary">' + summary + '</span>'
+    +   '<span class="filter-dropdown-arrow">▾</span>'
+    + '</button>'
+    + '<div class="filter-dropdown-panel" id="' + dropdownId + '">'
+    +   '<div class="filter-dropdown-opts">';
+  for (var j = 0; j < opts.length; j++) {
+    var o = opts[j];
+    html += '<label class="filter-dropdown-check">'
+      + '<input type="checkbox"' + (stateObj[o.key] ? ' checked' : '') + ' data-dd-key="' + escapeHtml(o.key) + '"> '
+      + escapeHtml(o.label) + '</label>';
+  }
+  html += '</div>'
+    +   '<div class="filter-dropdown-bar">'
+    +     '<button type="button" class="filter-dropdown-clear" onclick="filterDropdownClear(\'' + dropdownId + '\')">Zurücksetzen</button>'
+    +     '<button type="button" class="filter-dropdown-confirm" onclick="filterDropdownConfirmVK(\'' + dropdownId + '\',\'' + group + '\')">Bestätigen</button>'
+    +   '</div>'
+    + '</div></div>';
+  return html;
+}
+
+function filterDropdownConfirmVK(id, group) {
+  var panel = document.getElementById(id);
+  if (!panel) return;
+  var vkState = window._listenKarteState && window._listenKarteState['veranstaltungen-alle'];
+  if (vkState && vkState[group]) {
+    for (var k in vkState[group]) delete vkState[group][k];
+    var checks = panel.querySelectorAll('input[type="checkbox"]');
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].checked) vkState[group][checks[i].getAttribute('data-dd-key')] = true;
+    }
+  }
+  panel.classList.remove('offen');
+  if (typeof window._veranstaltungenKarteRefresh === 'function') window._veranstaltungenKarteRefresh();
+  _updateFilterDropdownSummary(id, group, 'veranstaltungen-alle');
 }
 
 
@@ -5830,19 +6084,9 @@ function initVeranstaltungenKarte(mapId, mitGeo, state) {
     }
   }
 
-  // Event-Listener fuer Filter-Checkboxen
-  var allChecks = document.querySelectorAll('[data-vkfilter]');
-  for (var c = 0; c < allChecks.length; c++) {
-    (function(cb) {
-      cb.addEventListener('change', function() {
-        var grp = cb.getAttribute('data-vkfilter');
-        var key = cb.getAttribute('data-vkkey');
-        if (cb.checked) state[grp][key] = true;
-        else delete state[grp][key];
-        refreshMarker();
-      });
-    })(allChecks[c]);
-  }
+  // Refresh als globalen Callback hinterlegen, damit der Dropdown-Bestaetigen-Button
+  // ihn nach Auswahl-Aenderung aufrufen kann.
+  window._veranstaltungenKarteRefresh = refreshMarker;
 
   refreshMarker();
   setTimeout(function() { map.invalidateSize(); }, 120);
@@ -6020,9 +6264,9 @@ function oeffneAktiveSlideshow() {
 function renderUnterkunftAnfrage(ziel, idx) {
   var alle = window.DATA_UNTERKUENFTE_DH || [];
   var item = (idx >= 0 && idx < alle.length) ? alle[idx] : null;
-  if (!item || !item.feratelUuid) {
+  if (!item) {
     ziel.innerHTML = navBar('home', '<strong>Verfügbarkeit</strong>')
-      + '<div class="hinweis">Keine Buchungs-ID hinterlegt.</div>';
+      + '<div class="hinweis">Unterkunft nicht gefunden.</div>';
     return;
   }
 
@@ -6037,18 +6281,22 @@ function renderUnterkunftAnfrage(ziel, idx) {
   var defaultAb = isoDate(inEinerWoche);
   var minDate = isoDate(heute);
 
-  // iFrame-ID merken, damit der Reload-Handler ihn findet
-  var iframeId = 'tosc5-frame';
+  // Kontaktdaten extrahieren
+  var email = (item.contact && item.contact.email) || '';
+  var phone = (item.contact && item.contact.phone) || '';
+  var webseite = (item.contact && item.contact.url) || '';
+  var telLink = phone.replace(/[^\d+]/g, '');
+
+  // State im Window halten (fuer die Button-Handler)
   window._aktivesAnfrageItem = { idx: idx, item: item };
 
-  // Initiale URL mit Default-Daten -- TOSC5 erkennt manche Parameter evtl.,
-  // bei Bedarf mit Mailbox an Feratel/Martin Weier klären welche genau.
-  var initialUrl = baueTosc5Url(item, defaultAn, defaultAb, 2, 0);
+  var hatTosc5 = !!item.feratelUuid;
+  var initialUrl = hatTosc5 ? baueTosc5Url(item, defaultAn, defaultAb, 2, 0) : '';
 
-  ziel.innerHTML =
+  var html =
     navBar('detail/unterkunft/tourismus-unterkuenfte_' + idx, 'Verfügbarkeit prüfen')
 
-    // Schlanke Eingabe-Leiste oben
+    // 1) EINGABE-LEISTE
     + '<div class="anfrage-bar">'
     +   '<div class="anfrage-bar-row">'
     +     '<div class="anfrage-bar-feld">'
@@ -6069,76 +6317,143 @@ function renderUnterkunftAnfrage(ziel, idx) {
     +       '<label for="anf-kin">Kinder</label>'
     +       '<input type="number" id="anf-kin" value="0" min="0" max="10" inputmode="numeric">'
     +     '</div>'
-    +     '<button type="button" class="anfrage-bar-btn" onclick="aktualisiereAnfrageIframe()">↻ Anwenden</button>'
     +   '</div>'
     + '</div>'
 
-    // iFrame mit TOSC5
-    + '<div class="buchung-iframe-wrap">'
-    +   '<iframe id="' + iframeId + '" class="buchung-iframe" src="' + escapeHtml(initialUrl) + '" '
-    +     'title="Verfügbarkeit prüfen" allow="payment" '
-    +     'referrerpolicy="no-referrer-when-downgrade"></iframe>'
-    +   '<a class="buchung-neuer-tab" href="' + escapeHtml(initialUrl) + '" '
-    +     'target="_blank" rel="noopener" '
-    +     'id="anfrage-tab-btn" '
-    +     'title="Im neuen Tab öffnen">↗ Vollbild</a>'
-    + '</div>';
+    // 2) AKTIONS-BUTTONS (funktionieren GARANTIERT, unabhängig von TOSC5)
+    + '<div class="anfrage-aktionen-bar">';
+  if (email) {
+    html += '<button type="button" class="anf-aktion anf-aktion-mail" onclick="anfrageMailSenden()">'
+      + '📧 <span>Per E-Mail anfragen</span></button>';
+  }
+  if (telLink) {
+    html += '<a href="tel:' + escapeHtml(telLink) + '" class="anf-aktion anf-aktion-tel">'
+      + '📞 <span>Anrufen</span></a>';
+  }
+  html += '<button type="button" class="anf-aktion anf-aktion-copy" onclick="anfrageDatenKopieren()">'
+    + '📋 <span>Daten kopieren</span></button>';
+  html += '</div>';
+
+  // 3) Erklärung wenn iFrame da
+  if (hatTosc5) {
+    html += '<div class="anfrage-hinweis-bar">'
+      +   '<span class="anfrage-hinweis-icon">ℹ️</span>'
+      +   'Auf <strong>westerwald.info</strong> unten musst Du Datum und Personen leider erneut eingeben — wir können das Datenfeld dort aus Sicherheitsgründen nicht direkt befüllen. '
+      +   'Tipp: <strong>Daten kopieren</strong> oben drücken und in die TOSC5-Felder unten paste-en.'
+      + '</div>'
+      + '<div class="buchung-iframe-wrap">'
+      +   '<iframe id="tosc5-frame" class="buchung-iframe" src="' + escapeHtml(initialUrl) + '" '
+      +     'title="Verfügbarkeit prüfen" allow="payment" '
+      +     'referrerpolicy="no-referrer-when-downgrade"></iframe>'
+      +   '<a class="buchung-neuer-tab" href="' + escapeHtml(initialUrl) + '" '
+      +     'target="_blank" rel="noopener" id="anfrage-tab-btn" title="Im neuen Tab öffnen">↗ Vollbild</a>'
+      + '</div>';
+  }
+
+  // Wenn weder Email noch Tel noch TOSC5 da
+  if (!email && !telLink && !hatTosc5) {
+    html += '<div class="hinweis">Für diese Unterkunft sind keine Kontaktdaten hinterlegt. '
+      + (webseite ? 'Bitte besuche die <a href="' + escapeHtml(webseite) + '" target="_blank" rel="noopener">Webseite</a>.' : 'Bitte kontaktiere den Anbieter direkt.') + '</div>';
+  }
+
+  ziel.innerHTML = html;
 }
 
-// Baut die TOSC5-URL mit allen ueblichen Datums-Parameter-Konventionen.
-// Welche davon Feratel wirklich auswertet ist nicht oeffentlich dokumentiert
-// -- nicht erkannte Schluessel ignoriert TOSC5 still.
+// Liest die Werte aus dem Eingabe-Bar und gibt ein normiertes Objekt zurueck.
+function _liesAnfrageBar() {
+  var anEl = document.getElementById('anf-an');
+  var abEl = document.getElementById('anf-ab');
+  var erwEl = document.getElementById('anf-erw');
+  var kinEl = document.getElementById('anf-kin');
+  if (!anEl || !abEl) return null;
+  var an = anEl.value, ab = abEl.value;
+  if (an && ab && an >= ab) {
+    alert('Bitte ein Abreise-Datum NACH der Anreise wählen.');
+    return null;
+  }
+  if (!an || !ab) {
+    alert('Bitte Anreise- und Abreise-Datum angeben.');
+    return null;
+  }
+  function isoToDe(iso) {
+    var p = iso.split('-');
+    return p[2] + '.' + p[1] + '.' + p[0];
+  }
+  return {
+    anIso: an, abIso: ab,
+    anDe: isoToDe(an), abDe: isoToDe(ab),
+    erw: parseInt((erwEl && erwEl.value) || '2', 10),
+    kin: parseInt((kinEl && kinEl.value) || '0', 10)
+  };
+}
+
 function baueTosc5Url(item, anIso, abIso, erw, kin) {
   var slug = item.slug || '';
-  // ISO -> DD.MM.YYYY fuer evtl. deutsche Param-Varianten
-  function deDate(iso) {
-    if (!iso) return '';
-    var p = iso.split('-');
-    return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso;
-  }
-  var ddmmyyyyAn = deDate(anIso);
-  var ddmmyyyyAb = deDate(abIso);
-  // Mehrere Param-Konventionen gleichzeitig anhaengen, TOSC5 nimmt was es kennt.
-  var params = [
-    'limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6',
-    'arrival=' + anIso,        'departure=' + abIso,           // Schema.org
-    'arr=' + anIso,            'dep=' + abIso,                 // kurz
-    'dateFrom=' + anIso,       'dateTo=' + abIso,              // generisch
-    'checkIn=' + anIso,        'checkOut=' + abIso,            // Booking/Hotels
-    'von=' + ddmmyyyyAn,       'bis=' + ddmmyyyyAb,            // deutsche Variante
-    'dat_a=' + ddmmyyyyAn,     'dat_d=' + ddmmyyyyAb,          // feratel-interne Vermutung
-    'adults=' + erw,           'children=' + kin,
-    'erwachsene=' + erw,       'kinder=' + kin
-  ].join('&');
-  return 'https://www.westerwald.info/tosc5/unterkuenfte?' + params
+  return 'https://www.westerwald.info/tosc5/unterkuenfte'
+    + '?limACCMARK=651a30e3-af0e-4021-8bfa-31a4e26828e6'
     + '#/unterkuenfte/RPT/' + encodeURIComponent(item.feratelUuid)
     + (slug ? '/' + encodeURIComponent(slug) : '')
     + '?useDetailSearch=false';
 }
 
-// Wird beim "Anwenden"-Klick aufgerufen: liest die Eingaben und laedt das
-// iFrame mit neuer URL. So bekommt TOSC5 die aktuellen Daten als URL-Params,
-// und der Cross-Origin-DOM-Block ist umgangen (wir greifen NICHT ins iFrame
-// rein, sondern laden es nur neu).
-function aktualisiereAnfrageIframe() {
+// Sendet eine fertig formulierte E-Mail an den Vermieter.
+function anfrageMailSenden() {
   var ctx = window._aktivesAnfrageItem;
   if (!ctx || !ctx.item) return;
-  var anEl  = document.getElementById('anf-an');
-  var abEl  = document.getElementById('anf-ab');
-  var erwEl = document.getElementById('anf-erw');
-  var kinEl = document.getElementById('anf-kin');
-  if (!anEl || !abEl) return;
-  var an = anEl.value, ab = abEl.value;
-  if (an && ab && an >= ab) {
-    alert('Bitte ein Abreise-Datum NACH der Anreise wählen.');
+  var item = ctx.item;
+  if (!item.contact || !item.contact.email) {
+    alert('Keine E-Mail-Adresse hinterlegt für diese Unterkunft.');
     return;
   }
-  var erw = parseInt((erwEl && erwEl.value) || '2', 10);
-  var kin = parseInt((kinEl && kinEl.value) || '0', 10);
-  var url = baueTosc5Url(ctx.item, an, ab, erw, kin);
-  var iframe = document.getElementById('tosc5-frame');
-  if (iframe) iframe.src = url;
-  // Vollbild-Link auch updaten
-  var tabBtn = document.getElementById('anfrage-tab-btn');
-  if (tabBtn) tabBtn.href = url;
+  var w = _liesAnfrageBar(); if (!w) return;
+  var personen = w.erw + ' Erwachsene' + (w.kin > 0 ? ' + ' + w.kin + ' Kind(er)' : '');
+  var subject = 'Verfügbarkeits-Anfrage ' + item.name + ' (' + w.anDe + ' – ' + w.abDe + ')';
+  var body = 'Hallo,\n\n'
+    + 'ich interessiere mich für eine Unterkunft bei Ihnen und möchte folgenden Zeitraum anfragen:\n\n'
+    + '  Anreise:    ' + w.anDe + '\n'
+    + '  Abreise:    ' + w.abDe + '\n'
+    + '  Personen:   ' + personen + '\n\n'
+    + 'Bitte teilen Sie mir mit, ob in diesem Zeitraum eine Unterkunft verfügbar ist und welche Konditionen gelten.\n\n'
+    + 'Vielen Dank und freundliche Grüße\n';
+  var mailtoUrl = 'mailto:' + encodeURIComponent(item.contact.email)
+    + '?subject=' + encodeURIComponent(subject)
+    + '&body=' + encodeURIComponent(body);
+  window.location.href = mailtoUrl;
+}
+
+// Kopiert die formulierte Anfrage in die Zwischenablage. Nutzer kann sie
+// dann ins TOSC5 oder in eine eigene Mail paste-en. Funktioniert auch dort
+// wo mailto: nicht zuverlaessig ist (z.B. wenn kein Mail-Programm registriert).
+function anfrageDatenKopieren() {
+  var w = _liesAnfrageBar(); if (!w) return;
+  var personen = w.erw + ' Erwachsene' + (w.kin > 0 ? ' + ' + w.kin + ' Kind(er)' : '');
+  var text = 'Anreise: ' + w.anDe + '\n'
+    + 'Abreise: ' + w.abDe + '\n'
+    + 'Personen: ' + personen;
+  // Modern Clipboard API mit Fallback fuer aeltere Browser
+  var fertig = function() {
+    var btn = document.querySelector('.anf-aktion-copy span');
+    if (btn) {
+      var old = btn.textContent;
+      btn.textContent = '✓ Kopiert!';
+      setTimeout(function() { btn.textContent = old; }, 1500);
+    }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(fertig).catch(function() {
+      _kopiereFallback(text); fertig();
+    });
+  } else {
+    _kopiereFallback(text); fertig();
+  }
+}
+function _kopiereFallback(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-1000px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
 }

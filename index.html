@@ -595,6 +595,179 @@ body.slideshow-aktiv { overflow: hidden; }
 .anfrage-btn-email  { background: #1d6b3e; }                /* primaer: gruen */
 .anfrage-btn-tel    { background: #5e7c3f; }                /* sekundaer: oliv */
 .anfrage-btn-online { background: #4a6379; }                /* tertiaer: grau-blau */
+/* ════════════════════════════════════════════════════════════════
+   FILTER-DROPDOWNS: Wiederverwendbar in Karten und Listen
+   ════════════════════════════════════════════════════════════════ */
+.filter-dropdown {
+  position: relative;
+  margin-bottom: 8px;
+}
+.filter-dropdown-head {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 9px 12px;
+  background: #fff;
+  border: 1.5px solid #ccc;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  gap: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+.filter-dropdown-head:hover { border-color: #1d6b3e; }
+.filter-dropdown-label {
+  font-weight: 700;
+  color: #333;
+  flex-shrink: 0;
+}
+.filter-dropdown-summary {
+  flex: 1;
+  color: #555;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-dropdown-summary em {
+  color: #999;
+  font-style: italic;
+}
+.filter-dropdown-arrow {
+  color: #1d6b3e;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.filter-dropdown-panel.offen ~ * .filter-dropdown-arrow,
+.filter-dropdown:has(.filter-dropdown-panel.offen) .filter-dropdown-arrow {
+  transform: rotate(180deg);
+}
+.filter-dropdown-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1.5px solid #1d6b3e;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  z-index: 100;
+  max-height: 340px;
+  overflow: hidden;
+  display: none;
+  flex-direction: column;
+}
+.filter-dropdown-panel.offen {
+  display: flex;
+}
+.filter-dropdown-opts {
+  padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+.filter-dropdown-check {
+  display: flex;
+  align-items: center;
+  padding: 9px 8px;
+  font-size: 15px;
+  cursor: pointer;
+  border-radius: 6px;
+  user-select: none;
+}
+.filter-dropdown-check:hover { background: #f3f3ee; }
+.filter-dropdown-check input[type="checkbox"] {
+  margin-right: 10px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: #1d6b3e;
+}
+.filter-dropdown-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid #e6e3da;
+  background: #fafaf6;
+}
+.filter-dropdown-clear,
+.filter-dropdown-confirm {
+  flex: 1;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.filter-dropdown-clear  { background: #e6e3da; color: #555; }
+.filter-dropdown-confirm { background: #1d6b3e; color: #fff; }
+.filter-dropdown-clear:hover,  .filter-dropdown-clear:active  { background: #d4d0c2; }
+.filter-dropdown-confirm:hover, .filter-dropdown-confirm:active { background: #155030; }
+
+.lk-zaehler-row {
+  padding: 4px 2px;
+  font-size: 12px;
+  color: #555;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ANFRAGE-AKTIONEN: Email / Tel / Kopieren (immer funktional)
+   ════════════════════════════════════════════════════════════════ */
+.anfrage-aktionen-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+  background: #fff;
+  border-bottom: 1px solid #e6e3da;
+}
+.anf-aktion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 8px;
+  background: #1d6b3e;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  line-height: 1.2;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+}
+.anf-aktion span { display: block; font-size: 12px; font-weight: 700; }
+.anf-aktion-mail { background: #1d6b3e; }
+.anf-aktion-tel  { background: #5e7c3f; }
+.anf-aktion-copy { background: #4a6379; }
+.anf-aktion:hover, .anf-aktion:active { filter: brightness(1.08); }
+
+.anfrage-hinweis-bar {
+  background: #fff8dc;
+  border-bottom: 1px solid #e6dca6;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #4a3a00;
+  line-height: 1.4;
+}
+.anfrage-hinweis-icon { margin-right: 4px; }
+.anfrage-hinweis-bar + .buchung-iframe-wrap {
+  height: calc(100vh - var(--header-h, 0px) - 200px);
+  min-height: 500px;
+}
+
 .anfrage-btn-web    { background: #7a7a6a; }                /* webseite: grau */
 
 /* ════════════════════════════════════════════════════════════════
