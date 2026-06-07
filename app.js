@@ -1026,7 +1026,13 @@ function normalisiere(item) {
     tips:         item.tips,
     safetyNotes:  item.safetyNotes,
     equipment:    item.equipment,
-    sections:     item.sections
+    sections:     item.sections,
+    // WICHTIG fuer Region-Filter: bezirk und _track muessen erhalten bleiben.
+    // bezirk kommt aus dem Python-Mapper (PLZ-/Polygon-basiert), _track ist
+    // der Polygon-Fallback fuer tourBezirk().
+    bezirk:       item.bezirk || '',
+    _track:       item._track || null,
+    plz:          item.plz || ''
   };
 }
 
