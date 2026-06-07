@@ -769,6 +769,37 @@ body.slideshow-aktiv { overflow: hidden; }
 .termin-eigen-btn:hover, .termin-eigen-btn:active { background: #155030; }
 
 /* ════════════════════════════════════════════════════════════════
+   BREADCRUMB: Listen-Titel groesser darstellen (kompensiert das
+   Wegfallen der intro-Ueberschrift bei Listen + Veranstaltungen).
+   ════════════════════════════════════════════════════════════════ */
+.sticky-region .nav-bar .nav-pfad {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--dunkelgruen);
+  line-height: 1.2;
+}
+.sticky-region .nav-bar .nav-pfad strong {
+  color: var(--dunkelgruen);
+  font-weight: 700;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FILTER-ROW: Zwei Dropdowns nebeneinander statt untereinander,
+   um Platz auf der Listen-Seite zu sparen. Auf sehr schmalen
+   Screens wird automatisch umgebrochen.
+   ════════════════════════════════════════════════════════════════ */
+.filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.filter-row > .filter-dropdown {
+  flex: 1 1 0;
+  min-width: 0;   /* damit Flex-Kinder schrumpfen koennen */
+  margin-bottom: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
    FILTER-DROPDOWNS: Wiederverwendbar in Karten und Listen
    ════════════════════════════════════════════════════════════════ */
 .filter-dropdown {

@@ -592,30 +592,50 @@ function sammleTagesHighlights(n) {
     else einzelEvents.push(item);
   }
 
-  // 4) Auswahl: Mehrtags zuerst (sind "Highlights"), dann Einzelevents.
-  //    Zusaetzlich: leichte Mischung -- max. 2 Events, der Rest ist Ausflugsziel,
-  //    damit der Slot abwechslungsreich bleibt.
+  // 4) Auswahl: Eintagesveranstaltungen werden BEVORZUGT (Walli's Wunsch).
+  //    Dauer-/Mehrtagesveranstaltungen erscheinen nur als Fallback, wenn
+  //    es an dem Tag keine Einzel-Events gibt -- ein laufendes Festival ist
+  //    weniger "Tipp des Tages"-Charakter als ein konkreter Tagestermin.
   var ausgewaehlt = [];
   var maxEvents = Math.min(2, n);
-  var kombiniert = mehrtagesEvents.concat(einzelEvents);
-  // Zufaellig mischen, damit nicht immer die alphabetisch ersten erscheinen
-  kombiniert = mischeArray(kombiniert);
-  for (var p = 0; p < kombiniert.length && ausgewaehlt.length < maxEvents; p++) {
-    var ev4 = kombiniert[p].ev;
-    var globalIdx = kombiniert[p].idx;
+  // Erst Einzel-Events mischen und auffuellen
+  var einzelMix = mischeArray(einzelEvents.slice());
+  for (var p = 0; p < einzelMix.length && ausgewaehlt.length < maxEvents; p++) {
+    var ev4 = einzelMix[p].ev;
+    var globalIdx = einzelMix[p].idx;
     var zeitStr = '';
     if (ev4.zeit) zeitStr = ev4.zeit + ' Uhr';
     var orStr = ev4.ort || '';
     var unter = [orStr, zeitStr].filter(Boolean).join(' · ');
-    var istMehr = !!(ev4.datumBisIso && ev4.datumBisIso !== ev4.datumIso);
     ausgewaehlt.push({
       typ: 'event',
-      pille: istMehr ? 'Festival · Heute' : 'Heute',
+      pille: 'Heute',
       titel: ev4.titel || ev4.name || 'Veranstaltung',
       untertitel: unter || heuteDe,
       bild: ev4.bild || '',
       ziel: 'detail-home/event/veranstaltungen-alle_' + globalIdx
     });
+  }
+  // Falls noch Plaetze frei sind und keine Einzelevents gefunden wurden,
+  // ZUSAETZLICH Mehrtages-/Dauerveranstaltungen einbeziehen
+  if (ausgewaehlt.length < maxEvents && einzelEvents.length === 0) {
+    var mehrMix = mischeArray(mehrtagesEvents.slice());
+    for (var pm = 0; pm < mehrMix.length && ausgewaehlt.length < maxEvents; pm++) {
+      var ev4m = mehrMix[pm].ev;
+      var globalIdxM = mehrMix[pm].idx;
+      var zeitStrM = '';
+      if (ev4m.zeit) zeitStrM = ev4m.zeit + ' Uhr';
+      var orStrM = ev4m.ort || '';
+      var unterM = [orStrM, zeitStrM].filter(Boolean).join(' · ');
+      ausgewaehlt.push({
+        typ: 'event',
+        pille: 'Festival · Heute',
+        titel: ev4m.titel || ev4m.name || 'Veranstaltung',
+        untertitel: unterM || heuteDe,
+        bild: ev4m.bild || '',
+        ziel: 'detail-home/event/veranstaltungen-alle_' + globalIdxM
+      });
+    }
   }
 
   // 5) Auffuellen mit Ausflugszielen (Zufall)
@@ -1659,7 +1679,10 @@ function termineFilterUI() {
     +   'oninput="setzeTermineSuche(this.value)" '
     +   'autocomplete="off">'
     + '</div>';
+  html += '<div class="filter-row">';
   html += renderFilterDropdownTermine('Datum',  datumOpts,  TERMIN_FILTER.datum,  'datum',  '📅');
+  html += renderFilterDropdownTermine('Region', bezirkOpts, TERMIN_FILTER.bezirk, 'bezirk', '📍');
+  html += '</div>';
   // Eigener Zeitraum: zwei Datums-Felder die nur sichtbar sind wenn
   // im Dropdown "Eigener Zeitraum..." aktiv ist. Werden beim Confirm
   // ein-/ausgeblendet, siehe filterDropdownConfirmTermine().
@@ -1678,7 +1701,6 @@ function termineFilterUI() {
     +     '<button type="button" class="termin-eigen-btn" onclick="termineEigenAnwenden()">↻ Anwenden</button>'
     +   '</div>'
     + '</div>';
-  html += renderFilterDropdownTermine('Region', bezirkOpts, TERMIN_FILTER.bezirk, 'bezirk', '📍');
   html += renderFilterDropdownTermine('Art',    artOpts,    TERMIN_FILTER.art,    'art',    '🎭');
   html += '</div>';
   return html;
@@ -2050,7 +2072,6 @@ function renderTermine(ziel, slug, l) {
     ziel.innerHTML =
       '<div class="sticky-region">'
       + navBar(l.zurueck, l.breadcrumb)
-      + intro(l.titel, l.untertitel)
       + '</div>'
       + '<div class="hinweis">Daten noch nicht verfügbar.</div>'
       + '<div class="spacer"></div>';
@@ -2065,7 +2086,6 @@ function renderTermine(ziel, slug, l) {
   ziel.innerHTML =
     '<div class="sticky-region">'
       + navBar(l.zurueck, l.breadcrumb)
-      + intro(l.titel, l.untertitel)
       + '<div id="filter-leiste-wrapper">' + termineFilterUI() + '</div>'
     + '</div>'
     + '<div class="listen-karte-btn-row">'
@@ -3005,12 +3025,17 @@ function gefiltertFilterUI(l) {
   var bezOpts = (l.filterBezirke || []).filter(function(b) { return b.key !== 'alle'; });
   var html = '<div class="filter-leiste gefiltert-filter">';
 
-  if (typOpts.length) {
-    html += renderFilterDropdownListe(
-      l.filterLabel || 'Art', typOpts, GEFILTERT_STATE.typ, 'typ', '🏷️');
-  }
-  if (bezOpts.length) {
-    html += renderFilterDropdownListe('Region', bezOpts, GEFILTERT_STATE.bezirk, 'bezirk', '📍');
+  // Beide Dropdowns nebeneinander (Art links, Region rechts)
+  if (typOpts.length || bezOpts.length) {
+    html += '<div class="filter-row">';
+    if (typOpts.length) {
+      html += renderFilterDropdownListe(
+        l.filterLabel || 'Art', typOpts, GEFILTERT_STATE.typ, 'typ', '🏷️');
+    }
+    if (bezOpts.length) {
+      html += renderFilterDropdownListe('Region', bezOpts, GEFILTERT_STATE.bezirk, 'bezirk', '📍');
+    }
+    html += '</div>';
   }
 
   // Suche bleibt als normales Eingabefeld (kein Sinn fuer Dropdown)
@@ -3213,7 +3238,6 @@ function renderGefiltertListe(ziel, slug, l) {
     ziel.innerHTML =
       '<div class="sticky-region">'
       + navBar(l.zurueck, l.breadcrumb)
-      + intro(l.titel, l.untertitel)
       + '</div>'
       + '<div class="hinweis">Daten noch nicht verfügbar.</div>'
       + '<div class="spacer"></div>';
@@ -3224,7 +3248,6 @@ function renderGefiltertListe(ziel, slug, l) {
   ziel.innerHTML =
     '<div class="sticky-region">'
       + navBar(l.zurueck, l.breadcrumb)
-      + intro(l.titel, l.untertitel)
       + '<div id="gefiltert-filter-wrap">' + gefiltertFilterUI(l) + '</div>'
     + '</div>'
     + '<div class="listen-karte-btn-row">'
