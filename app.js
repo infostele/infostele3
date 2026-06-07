@@ -413,6 +413,7 @@ function _routerDispatch(ziel, teile) {
   else if (teile[0] === 'kategorie' && teile[1]) renderKategorie(ziel, teile[1]);
   else if (teile[0] === 'liste' && teile[1])    renderListe(ziel, teile[1]);
   else if (teile[0] === 'detail' && teile[1] && teile[2]) renderDetail(ziel, teile[1], teile[2]);
+  else if (teile[0] === 'detail-home' && teile[1] && teile[2]) renderDetail(ziel, teile[1], teile[2], 'home');
   else if (teile[0] === 'karte'  && teile[1] && teile[2]) renderKarte(ziel, teile[1], teile[2]);
   else if (teile[0] === 'karte-liste' && teile[1]) {
     try {
@@ -613,7 +614,7 @@ function sammleTagesHighlights(n) {
       titel: ev4.titel || ev4.name || 'Veranstaltung',
       untertitel: unter || heuteDe,
       bild: ev4.bild || '',
-      ziel: 'detail/event/veranstaltungen-alle_' + globalIdx
+      ziel: 'detail-home/event/veranstaltungen-alle_' + globalIdx
     });
   }
 
@@ -650,7 +651,7 @@ function zufaelligeAusflugsziele(n) {
       titel: p.name || 'Ausflugsziel',
       untertitel: orStr,
       bild: p._bild || '',
-      ziel: 'detail/badesee/tourismus-ausflugsziele_' + entry.idx
+      ziel: 'detail-home/badesee/tourismus-ausflugsziele_' + entry.idx
     });
   }
   return ausgewaehlt;
@@ -1612,7 +1613,7 @@ function renderWwLit(ziel, slug, l) {
 // ════════════════════════════════════════════════════════════════
 
 // Termin-Filter-State (eigener State)
-var TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '' };
+var TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '', eigenVon: '', eigenBis: '' };
 window._aktuelleTermine = null;
 
 function termineFilterUI() {
@@ -1624,7 +1625,8 @@ function termineFilterUI() {
     {key:'woche',  label:'Diese Woche'},
     {key:'monat',  label:'Dieser Monat'},
     {key:'jahr',   label:'Aktuelles Jahr'},
-    {key:'dauer',  label:'Dauerveranstaltungen'}
+    {key:'dauer',  label:'Dauerveranstaltungen'},
+    {key:'eigen', label:'Eigener Zeitraum…'}
   ];
   var bezirkOpts = [
     {key:'AK',     label:'Kreis Altenkirchen'},
@@ -1648,6 +1650,24 @@ function termineFilterUI() {
     +   'autocomplete="off">'
     + '</div>';
   html += renderFilterDropdownTermine('Datum',  datumOpts,  TERMIN_FILTER.datum,  'datum',  '📅');
+  // Eigener Zeitraum: zwei Datums-Felder die nur sichtbar sind wenn
+  // im Dropdown "Eigener Zeitraum..." aktiv ist. Werden beim Confirm
+  // ein-/ausgeblendet, siehe filterDropdownConfirmTermine().
+  var eigenAktiv = !!TERMIN_FILTER.datum.eigen;
+  html += '<div class="termin-eigen-bereich" id="termin-eigen-bereich" '
+    + 'style="' + (eigenAktiv ? '' : 'display:none') + '">'
+    +   '<div class="termin-eigen-row">'
+    +     '<div class="termin-eigen-feld">'
+    +       '<label for="termin-eigen-von">von</label>'
+    +       '<input type="date" id="termin-eigen-von" value="' + escapeHtml(TERMIN_FILTER.eigenVon || '') + '">'
+    +     '</div>'
+    +     '<div class="termin-eigen-feld">'
+    +       '<label for="termin-eigen-bis">bis</label>'
+    +       '<input type="date" id="termin-eigen-bis" value="' + escapeHtml(TERMIN_FILTER.eigenBis || '') + '">'
+    +     '</div>'
+    +     '<button type="button" class="termin-eigen-btn" onclick="termineEigenAnwenden()">↻ Anwenden</button>'
+    +   '</div>'
+    + '</div>';
   html += renderFilterDropdownTermine('Region', bezirkOpts, TERMIN_FILTER.bezirk, 'bezirk', '📍');
   html += renderFilterDropdownTermine('Art',    artOpts,    TERMIN_FILTER.art,    'art',    '🎭');
   html += '</div>';
@@ -1701,6 +1721,18 @@ function filterDropdownConfirmTermine(id, group) {
     }
   }
   panel.classList.remove('offen');
+  // Eigener-Zeitraum-Bereich ein-/ausblenden je nach Datum-Checkbox
+  if (group === 'datum') {
+    var eigenBereich = document.getElementById('termin-eigen-bereich');
+    if (eigenBereich) {
+      eigenBereich.style.display = TERMIN_FILTER.datum.eigen ? '' : 'none';
+    }
+    // Wenn "Eigener Zeitraum" deaktiviert wurde -> Eingaben zurueck
+    if (!TERMIN_FILTER.datum.eigen) {
+      TERMIN_FILTER.eigenVon = '';
+      TERMIN_FILTER.eigenBis = '';
+    }
+  }
   // Termin-Refresh via gespeichertem Context (_aktuelleTermine = {slug, info})
   var ctx = window._aktuelleTermine;
   if (ctx) {
@@ -1708,6 +1740,34 @@ function filterDropdownConfirmTermine(id, group) {
     var liste   = document.getElementById('termine-liste');
     if (fLeiste) fLeiste.innerHTML = termineFilterUI();
     if (liste)   liste.innerHTML = baueTermineListe(ctx.slug, ctx.info);
+    if (typeof aktualisiereTermineTreffer === 'function') aktualisiereTermineTreffer(ctx);
+  }
+}
+
+// Liest die zwei Datums-Felder aus dem eigen-Bereich, validiert und triggert
+// Rerender. Wird vom "↻ Anwenden"-Button gerufen.
+function termineEigenAnwenden() {
+  var vonEl = document.getElementById('termin-eigen-von');
+  var bisEl = document.getElementById('termin-eigen-bis');
+  if (!vonEl || !bisEl) return;
+  var von = vonEl.value, bis = bisEl.value;
+  if (!von && !bis) {
+    alert('Bitte mindestens "von" oder "bis" angeben.');
+    return;
+  }
+  if (von && bis && von > bis) {
+    alert('Das "bis"-Datum muss NACH dem "von"-Datum liegen.');
+    return;
+  }
+  TERMIN_FILTER.eigenVon = von;
+  TERMIN_FILTER.eigenBis = bis;
+  // Sicherstellen dass eigen-Filter im Datum-Set ist
+  TERMIN_FILTER.datum.eigen = true;
+  // Liste neu rendern
+  var ctx = window._aktuelleTermine;
+  if (ctx) {
+    var liste = document.getElementById('termine-liste');
+    if (liste) liste.innerHTML = baueTermineListe(ctx.slug, ctx.info);
     if (typeof aktualisiereTermineTreffer === 'function') aktualisiereTermineTreffer(ctx);
   }
 }
@@ -1771,9 +1831,12 @@ function termineFilterAnwenden(items) {
   return items.filter(function(item) {
     var d = item.datumIso || '';
     if (!d) return false;
-    // Event muss noch laufen oder in der Zukunft sein (Enddatum berücksichtigen)
+    // Event muss noch laufen oder in der Zukunft sein (Enddatum berücksichtigen).
+    // AUSNAHME: Wenn der User "Eigener Zeitraum" aktiv hat, soll auch Vergangenes
+    // angezeigt werden duerfen (z.B. um nach historischen Terminen zu suchen).
     var dEnde = item.datumBisIso || d;
-    if (dEnde < heuteStr) return false;
+    var eigenAktiv = !!TERMIN_FILTER.datum.eigen;
+    if (!eigenAktiv && dEnde < heuteStr) return false;
 
     // Mehrtaegig = "bis [Datum]"-Eintrag (Festival, Ausstellung, Kurs ueber mehrere Tage)
     var istMehrtaegig = !!(item.datumBisIso && item.datumBisIso !== item.datumIso);
@@ -1784,7 +1847,8 @@ function termineFilterAnwenden(items) {
     // Multi-Select-Datum mit OR-Semantik: leer oder alle aktiv = kein Filter,
     // sonst muss item zu MINDESTENS einem gewaehlten Bucket passen.
     var datumKeys = Object.keys(TERMIN_FILTER.datum);
-    var datumFilterAktiv = datumKeys.length > 0 && datumKeys.length < 5;
+    // 6 Optionen jetzt (heute, woche, monat, jahr, dauer, eigen)
+    var datumFilterAktiv = datumKeys.length > 0 && datumKeys.length < 6;
     // Sonderfall: nur 'dauer' aktiv → nur mehrtägige
     var nurDauer = datumKeys.length === 1 && datumKeys[0] === 'dauer';
     // Wenn 'dauer' NICHT in der Auswahl ist (und Filter aktiv): mehrtaegige raus
@@ -1807,6 +1871,18 @@ function termineFilterAnwenden(items) {
       for (var bk in TERMIN_FILTER.datum) {
         if (bk === 'dauer') {
           if (istMehrtaegig) { matched = true; break; }
+        } else if (bk === 'eigen') {
+          // Freier Datumsbereich: item.datumIso muss zwischen eigenVon und eigenBis liegen.
+          // Bei mehrtaegigen Events reicht eine Ueberlappung mit dem Zeitraum.
+          var evStart = item.datumIso || '';
+          var evEnde  = item.datumBisIso || item.datumIso || '';
+          var von = TERMIN_FILTER.eigenVon || '';
+          var bis = TERMIN_FILTER.eigenBis || '';
+          // Ueberlappungs-Check: evStart <= bis UND evEnde >= von
+          var passt = true;
+          if (von && evEnde && evEnde < von) passt = false;
+          if (bis && evStart && evStart > bis) passt = false;
+          if (passt) { matched = true; break; }
         } else if (buckets[bk]) {
           if (d <= buckets[bk]) { matched = true; break; }
         }
@@ -1928,7 +2004,7 @@ function aktualisiereTermineTreffer(l) {
 }
 
 function renderTermine(ziel, slug, l) {
-  TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '' };
+  TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '', eigenVon: '', eigenBis: '' };
   window._aktuelleTermine = { slug: slug, info: l };
 
   // Einmaliges Deduplizieren bei erstem Aufruf — schützt vor Mehrfach-Laden
@@ -6084,7 +6160,8 @@ function renderVeranstaltungenKarte(ziel) {
     {key:'woche',  label:'Diese Woche'},
     {key:'monat',  label:'Dieser Monat'},
     {key:'jahr',   label:'Aktuelles Jahr'},
-    {key:'dauer',  label:'Dauerveranstaltungen'}
+    {key:'dauer',  label:'Dauerveranstaltungen'},
+    {key:'eigen', label:'Eigener Zeitraum…'}
   ];
   var bezirkOpts = [
     {key:'AK',     label:'Kreis Altenkirchen'},

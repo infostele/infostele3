@@ -710,6 +710,65 @@ body.slideshow-aktiv { overflow: hidden; }
 }
 
 /* ════════════════════════════════════════════════════════════════
+   EIGENER ZEITRAUM (Termine-Filter): zwei Datums-Felder, nur sichtbar
+   wenn die Checkbox "Eigener Zeitraum…" im Datum-Dropdown aktiv ist.
+   ════════════════════════════════════════════════════════════════ */
+.termin-eigen-bereich {
+  background: #fff8dc;
+  border: 1px solid #e6dca6;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.termin-eigen-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.termin-eigen-feld {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 120px;
+}
+.termin-eigen-feld label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+.termin-eigen-feld input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 8px;
+  border: 1px solid #c9bd7a;
+  border-radius: 6px;
+  font-size: 16px;
+  font-family: inherit;
+  background: #fff;
+  -webkit-appearance: none;
+}
+.termin-eigen-feld input:focus {
+  outline: none;
+  border-color: #1d6b3e;
+}
+.termin-eigen-btn {
+  padding: 8px 14px;
+  background: #1d6b3e;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.termin-eigen-btn:hover, .termin-eigen-btn:active { background: #155030; }
+
+/* ════════════════════════════════════════════════════════════════
    FILTER-DROPDOWNS: Wiederverwendbar in Karten und Listen
    ════════════════════════════════════════════════════════════════ */
 .filter-dropdown {
