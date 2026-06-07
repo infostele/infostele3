@@ -1394,12 +1394,27 @@ function aktualisiereTreffer(l) {
   var voll = n.filter(istVollstaendig);
   var g = filterAnwenden(voll);
   var unvoll = n.length - voll.length;
+  // Bezirks-Verteilung berechnen -- hilft bei der Diagnose ob die
+  // PLZ-/Polygon-Zuordnung im Mapper geklappt hat
+  var bzZahlen = { AK: 0, NR: 0, WW: 0, HE: 0, SO: 0 };
+  for (var bzI = 0; bzI < voll.length; bzI++) {
+    var bz = tourBezirk(voll[bzI]);
+    if (bzZahlen[bz] !== undefined) bzZahlen[bz]++;
+  }
   var el = document.getElementById('filter-treffer');
   if (el) {
     var txt = '<strong>' + g.length + '</strong> von <strong>' + voll.length + '</strong> Touren angezeigt';
     if (unvoll > 0) {
       txt += ' · <span class="treffer-extra">+' + unvoll + ' in Vorbereitung</span>';
     }
+    // Bezirks-Aufschluesselung in kleiner Schrift dahinter
+    txt += '<div class="bezirks-stats">'
+      + 'AK: <strong>' + bzZahlen.AK + '</strong> · '
+      + 'NR: <strong>' + bzZahlen.NR + '</strong> · '
+      + 'WW: <strong>' + bzZahlen.WW + '</strong> · '
+      + 'HE: <strong>' + bzZahlen.HE + '</strong> · '
+      + 'SO: <strong>' + bzZahlen.SO + '</strong>'
+      + '</div>';
     el.innerHTML = txt;
   }
 }
