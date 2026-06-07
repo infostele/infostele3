@@ -596,6 +596,102 @@ body.slideshow-aktiv { overflow: hidden; }
 .anfrage-btn-tel    { background: #5e7c3f; }                /* sekundaer: oliv */
 .anfrage-btn-online { background: #4a6379; }                /* tertiaer: grau-blau */
 /* ════════════════════════════════════════════════════════════════
+   TAGES-HIGHLIGHTS auf der Startseite: 3 Karten ueber den Kategorien
+   ════════════════════════════════════════════════════════════════ */
+.heute-section {
+  padding: 4px 14px 18px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.heute-titel {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d6b3e;
+  margin: 0 0 10px 4px;
+  letter-spacing: 0.2px;
+}
+.heute-karten {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.heute-karte {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e6e3da;
+  border-left: 4px solid #1d6b3e;
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.heute-karte:hover,
+.heute-karte:active {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+}
+.heute-karte-bild {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  background-color: #f0eee5;
+}
+.heute-karte-bild-platzhalter {
+  background-image: linear-gradient(135deg, #e6e3da 0%, #d4d0c2 100%);
+}
+.heute-karte-text {
+  flex: 1;
+  min-width: 0;   /* damit ellipsis greift */
+}
+.heute-karte-pille {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.heute-karte-pille-event { background: #fff2cc; color: #876700; }
+.heute-karte-pille-poi   { background: #d8efde; color: #1d6b3e; }
+.heute-karte-titel {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heute-karte-meta {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heute-karte-pfeil {
+  flex: 0 0 auto;
+  color: #1d6b3e;
+  font-size: 24px;
+  font-weight: 300;
+  padding: 0 6px;
+}
+
+/* ════════════════════════════════════════════════════════════════
    FILTER-DROPDOWNS: Wiederverwendbar in Karten und Listen
    ════════════════════════════════════════════════════════════════ */
 .filter-dropdown {

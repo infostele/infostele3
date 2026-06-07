@@ -462,6 +462,7 @@ function renderHome(ziel) {
   ziel.innerHTML =
     intro('Hui Wäller? Allemol!', 'Entdecke die <em>Vielfalt</em> des Westerwaldes.', true)
     + window._WASSERZEICHEN
+    + renderTagesHighlights()
     + '<nav class="kategorien">'
       + kachel('tourismus', 'Tourismus<br>&amp; Freizeit', ICONS.wandern)
       + kachel('regional',  'Regionale<br>Produkte',     ICONS.korb)
@@ -469,6 +470,170 @@ function renderHome(ziel) {
       + kachel('mobilitaet','Mobilität<br>&amp; Verkehr',ICONS.bus)
     + '</nav>'
     + '<div class="spacer"></div>';
+}
+
+// ────────────────────────────────────────────────────────────────────
+// TAGES-HIGHLIGHTS: 3 Karten auf der Startseite
+//   - heute laufende Einzelevents oder Mehrtages-Events
+//   - regelmaessige Termine (Maerkte, jeden-Mittwoch-X) werden ausgeblendet
+//     ueber Heuristik: gleicher Titel >= 3x in den naechsten 30 Tagen
+//   - Wenn weniger als 3 Events: mit zufaelligem Ausflugsziel auffuellen
+// ────────────────────────────────────────────────────────────────────
+function renderTagesHighlights() {
+  var highlights = sammleTagesHighlights(3);
+  if (!highlights.length) return '';  // gar nichts? dann lassen
+
+  var html = '<div class="heute-section">'
+    + '<h3 class="heute-titel">✨ Heute entdecken</h3>'
+    + '<div class="heute-karten">';
+  for (var i = 0; i < highlights.length; i++) {
+    var h = highlights[i];
+    html += '<button class="heute-karte" onclick="navigateTo(\'' + escapeHtml(h.ziel) + '\')">'
+      + (h.bild ? '<div class="heute-karte-bild" style="background-image:url(\'' + escapeHtml(h.bild) + '\')"></div>'
+                : '<div class="heute-karte-bild heute-karte-bild-platzhalter"></div>')
+      + '<div class="heute-karte-text">'
+      +   '<div class="heute-karte-pille heute-karte-pille-' + h.typ + '">' + h.pille + '</div>'
+      +   '<div class="heute-karte-titel">' + escapeHtml(h.titel) + '</div>'
+      +   (h.untertitel ? '<div class="heute-karte-meta">' + escapeHtml(h.untertitel) + '</div>' : '')
+      + '</div>'
+      + '<div class="heute-karte-pfeil">&rsaquo;</div>'
+      + '</button>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function sammleTagesHighlights(n) {
+  var heute = new Date();
+  heute.setHours(0,0,0,0);
+  var pad = function(x) { return String(x).padStart(2,'0'); };
+  var heuteIso = heute.getFullYear() + '-' + pad(heute.getMonth()+1) + '-' + pad(heute.getDate());
+  var heuteDe = pad(heute.getDate()) + '.' + pad(heute.getMonth()+1) + '.' + heute.getFullYear();
+  // Ende Filter-Fenster: 30 Tage in der Zukunft (fuer Haeufigkeits-Heuristik)
+  var maxDate = new Date(heute.getTime() + 30*24*60*60*1000);
+  var maxDateIso = maxDate.getFullYear() + '-' + pad(maxDate.getMonth()+1) + '-' + pad(maxDate.getDate());
+
+  var alleEvents = window.DATA_VERANSTALTUNGEN_ALLE || [];
+
+  // 1) HEUTE laufende Events finden
+  var heuteEvents = [];
+  for (var i = 0; i < alleEvents.length; i++) {
+    var ev = alleEvents[i];
+    if (!ev.datumIso) continue;
+    var ende = ev.datumBisIso || ev.datumIso;
+    var laeuftHeute = (ev.datumIso <= heuteIso && ende >= heuteIso);
+    if (!laeuftHeute) continue;
+    heuteEvents.push({ ev: ev, idx: i });
+  }
+  if (!heuteEvents.length) {
+    // Gar keine heutigen Events -> nur Ausflugsziele zeigen
+    return zufaelligeAusflugsziele(n);
+  }
+
+  // 2) Haeufigkeit der Event-Titel in den naechsten 30 Tagen zaehlen
+  //    Wenn >= 3, ist es vermutlich ein Markt / wiederkehrender Termin -> raus.
+  var titelZaehlung = {};
+  for (var k = 0; k < alleEvents.length; k++) {
+    var ev2 = alleEvents[k];
+    if (!ev2.datumIso) continue;
+    if (ev2.datumIso < heuteIso || ev2.datumIso > maxDateIso) continue;
+    var t = (ev2.titel || ev2.name || '').toLowerCase().trim();
+    if (!t) continue;
+    titelZaehlung[t] = (titelZaehlung[t] || 0) + 1;
+  }
+
+  // 3) Filtern: keine regelmaessigen Termine
+  //    Plus: doppelte Titel im heute-Bestand auf 1 reduzieren
+  var gesehen = {};
+  var einzelEvents = [];
+  var mehrtagesEvents = [];
+  for (var m = 0; m < heuteEvents.length; m++) {
+    var item = heuteEvents[m];
+    var ev3 = item.ev;
+    var titel = (ev3.titel || ev3.name || '').toLowerCase().trim();
+    if (!titel) continue;
+    if (gesehen[titel]) continue;
+    gesehen[titel] = true;
+    // Markt-Heuristik: >= 3 Auftritte in 30 Tagen -> regelmaessig
+    if ((titelZaehlung[titel] || 0) >= 3) continue;
+    var istMehrtags = !!(ev3.datumBisIso && ev3.datumBisIso !== ev3.datumIso);
+    if (istMehrtags) mehrtagesEvents.push(item);
+    else einzelEvents.push(item);
+  }
+
+  // 4) Auswahl: Mehrtags zuerst (sind "Highlights"), dann Einzelevents.
+  //    Zusaetzlich: leichte Mischung -- max. 2 Events, der Rest ist Ausflugsziel,
+  //    damit der Slot abwechslungsreich bleibt.
+  var ausgewaehlt = [];
+  var maxEvents = Math.min(2, n);
+  var kombiniert = mehrtagesEvents.concat(einzelEvents);
+  // Zufaellig mischen, damit nicht immer die alphabetisch ersten erscheinen
+  kombiniert = mischeArray(kombiniert);
+  for (var p = 0; p < kombiniert.length && ausgewaehlt.length < maxEvents; p++) {
+    var ev4 = kombiniert[p].ev;
+    var globalIdx = kombiniert[p].idx;
+    var zeitStr = '';
+    if (ev4.zeit) zeitStr = ev4.zeit + ' Uhr';
+    var orStr = ev4.ort || '';
+    var unter = [orStr, zeitStr].filter(Boolean).join(' · ');
+    var istMehr = !!(ev4.datumBisIso && ev4.datumBisIso !== ev4.datumIso);
+    ausgewaehlt.push({
+      typ: 'event',
+      pille: istMehr ? 'Festival · Heute' : 'Heute',
+      titel: ev4.titel || ev4.name || 'Veranstaltung',
+      untertitel: unter || heuteDe,
+      bild: ev4.bild || '',
+      ziel: 'detail/event/veranstaltungen-alle_' + globalIdx
+    });
+  }
+
+  // 5) Auffuellen mit Ausflugszielen (Zufall)
+  var lueckenZahl = n - ausgewaehlt.length;
+  if (lueckenZahl > 0) {
+    ausgewaehlt = ausgewaehlt.concat(zufaelligeAusflugsziele(lueckenZahl));
+  }
+  return ausgewaehlt;
+}
+
+function zufaelligeAusflugsziele(n) {
+  var pois = window.DATA_POIS_DH || [];
+  if (!pois.length) return [];
+  // Bevorzugt mit Bild
+  var mitBild = [];
+  for (var i = 0; i < pois.length; i++) {
+    if (pois[i]._bild) mitBild.push({ p: pois[i], idx: i });
+  }
+  var pool = mitBild.length ? mitBild : pois.map(function(p, i) { return { p: p, idx: i }; });
+  var ausgewaehlt = [];
+  var gesehenIdx = {};
+  var maxVersuche = pool.length * 2;
+  while (ausgewaehlt.length < n && maxVersuche-- > 0) {
+    var r = Math.floor(Math.random() * pool.length);
+    if (gesehenIdx[r]) continue;
+    gesehenIdx[r] = true;
+    var entry = pool[r];
+    var p = entry.p;
+    var orStr = p.ort || '';
+    ausgewaehlt.push({
+      typ: 'poi',
+      pille: 'Ausflugstipp',
+      titel: p.name || 'Ausflugsziel',
+      untertitel: orStr,
+      bild: p._bild || '',
+      ziel: 'detail/badesee/tourismus-ausflugsziele_' + entry.idx
+    });
+  }
+  return ausgewaehlt;
+}
+
+// Fisher-Yates Shuffle, in-place auf Kopie
+function mischeArray(arr) {
+  var kopie = arr.slice();
+  for (var i = kopie.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = kopie[i]; kopie[i] = kopie[j]; kopie[j] = tmp;
+  }
+  return kopie;
 }
 function kachel(slug, label, iconSvg) {
   return '<button class="kat" onclick="navigateTo(\'kategorie/' + slug + '\')">'
