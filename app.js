@@ -5847,12 +5847,12 @@ function renderTourenKarte(ziel, slug, info, datenName, detailKey) {
   if (ohneGeoCount > 0) trefferTxt += ' · ' + ohneGeoCount + ' ohne Track';
 
   ziel.innerHTML =
-    '<div class="sticky-region">'
+    '<div class="sticky-region" style="z-index:1500;">'
       + navBar('liste/' + slug, info.breadcrumb + ' › <strong>Karte</strong>')
       + baueFilterHtml()
     + '</div>'
     + '<div id="filter-treffer" class="filter-treffer">' + trefferTxt + '</div>'
-    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;z-index:0;isolation:isolate;">'
       + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '<div class="spacer"></div>';
@@ -5929,7 +5929,7 @@ function renderPoiKarte(ziel, slug, l) {
   var rohdaten = window[l.datenName] || [];
   if (!rohdaten.length) {
     ziel.innerHTML =
-      '<div class="sticky-region">'
+      '<div class="sticky-region" style="z-index:1500;">'
       + navBar('liste/' + slug, l.breadcrumb + ' › <strong>Karte</strong>')
       + '</div>'
       + '<div class="hinweis">Daten noch nicht verfügbar.</div><div class="spacer"></div>';
@@ -5961,7 +5961,7 @@ function renderPoiKarte(ziel, slug, l) {
       + '<div id="gefiltert-filter-wrap">' + gefiltertFilterUI(l) + '</div>'
     + '</div>'
     + '<div id="gefiltert-treffer" class="filter-treffer">… wird geladen …</div>'
-    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;z-index:0;isolation:isolate;">'
       + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '<div class="spacer"></div>';
@@ -6146,7 +6146,7 @@ function renderListenKarte(ziel, slug) {
   var alle = window[datenName] || [];
   if (!alle.length) {
     ziel.innerHTML =
-      '<div class="sticky-region">'
+      '<div class="sticky-region" style="z-index:1500;">'
       + navBar('liste/' + slug, info.breadcrumb + ' › <strong>Karte</strong>')
       + intro(info.titel, info.untertitel || '')
       + '</div>'
@@ -6232,7 +6232,7 @@ function renderListenKarte(ziel, slug) {
     + '</small></div>';
   html += '</div>';   // /listen-karte-filter
 
-  html += '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+  html += '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;z-index:0;isolation:isolate;">'
     + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '</div>';   // /listen-karte-wrap
@@ -6546,7 +6546,7 @@ function renderVeranstaltungenKarte(ziel) {
   var alle = window.DATA_VERANSTALTUNGEN_ALLE || [];
   if (!alle.length) {
     ziel.innerHTML =
-      '<div class="sticky-region">'
+      '<div class="sticky-region" style="z-index:1500;">'
       + navBar('liste/veranstaltungen-alle', 'Veranstaltungen › <strong>Karte</strong>')
       + '</div>'
       + '<div class="hinweis">Keine Veranstaltungen verfügbar.</div>'
@@ -6580,7 +6580,7 @@ function renderVeranstaltungenKarte(ziel) {
       + '<div id="termine-filter-wrap">' + termineFilterUI() + '</div>'
     + '</div>'
     + '<div id="termine-treffer" class="filter-treffer">… wird geladen …</div>'
-    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;z-index:0;isolation:isolate;">'
       + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '<div class="spacer"></div>';
