@@ -390,12 +390,18 @@ img { max-width: 100%; display: block; }
 }
 .kat-label {
   font-family: var(--font); font-weight: 700;
-  font-size: clamp(14px, 3.8vw, 16px);
+  font-size: clamp(13px, 3.6vw, 16px);
   color: var(--dunkelgruen);
-  text-transform: uppercase; letter-spacing: 0.5px;
+  text-transform: uppercase; letter-spacing: 0.3px;
   line-height: 1.2; text-align: center; margin-top: 4px;
   transition: color .2s; min-height: 38px;
   display: flex; align-items: center; justify-content: center;
+  /* Lange Worte (z.B. "Veranstaltungen") muessen auf engen Smartphones
+     umbrechen koennen, sonst klebt der Text am Kachel-Rand. */
+  hyphens: auto; -webkit-hyphens: auto;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  padding: 0 2px;
 }
 .kat-icon {
   width: 60px; height: 60px;

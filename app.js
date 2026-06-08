@@ -497,7 +497,7 @@ function renderHome(ziel) {
     + '<nav class="kategorien">'
       + kachel('tourismus', 'Tourismus<br>&amp; Freizeit', ICONS.wandern)
       + kachel('regional',  'Regionale<br>Produkte',     ICONS.korb)
-      + kachel('veranstaltungen', 'Veranstaltungen',           ICONS.kalender)
+      + kachel('veranstaltungen', 'Veran&shy;staltungen',           ICONS.kalender)
       + kachel('mobilitaet','Mobilität<br>&amp; Verkehr',ICONS.bus)
     + '</nav>'
     + '<div class="spacer"></div>';
@@ -517,11 +517,20 @@ function renderTagesHighlights() {
   var html = '<div class="heute-section">'
     + '<h3 class="heute-titel">✨ Heute entdecken</h3>'
     + '<div class="heute-karten">';
+  // Symbol je nach Typ. Bilder sind auf der Startseite bewusst weggelassen,
+  // weil DataHub-Fotos teilweise blockiert oder nicht erreichbar sind und ein
+  // halber Platzhalter unschoen aussieht. Icons sind robust und schnell.
+  var typIcon = function(t) {
+    if (t === 'event') return '🎭';
+    if (t === 'tour')  return '🥾';
+    if (t === 'poi')   return '📍';
+    if (t === 'gastro') return '🍽️';
+    return '✨';
+  };
   for (var i = 0; i < highlights.length; i++) {
     var h = highlights[i];
     html += '<button class="heute-karte" onclick="navigateTo(\'' + escapeHtml(h.ziel) + '\')">'
-      + (h.bild ? '<div class="heute-karte-bild" style="background-image:url(\'' + escapeHtml(h.bild) + '\')"></div>'
-                : '<div class="heute-karte-bild heute-karte-bild-platzhalter"></div>')
+      + '<div class="heute-karte-icon">' + typIcon(h.typ) + '</div>'
       + '<div class="heute-karte-text">'
       +   '<div class="heute-karte-pille heute-karte-pille-' + h.typ + '">' + h.pille + '</div>'
       +   '<div class="heute-karte-titel">' + escapeHtml(h.titel) + '</div>'
@@ -1383,6 +1392,15 @@ function resetFilter() {
   rerenderListe();
 }
 function rerenderListe() {
+  // Wenn wir gerade die Touren-Karte sehen: Marker neu zeichnen + Filter-Leiste
+  // neu rendern (damit die Dropdown-Header-Labels aktualisieren).
+  if (typeof window._tourenKarteRefresh === 'function' &&
+      document.querySelector('.listen-karte-map')) {
+    var fLeisteK = document.getElementById('filter-leiste-wrapper');
+    if (fLeisteK) fLeisteK.innerHTML = filterUI();
+    window._tourenKarteRefresh();
+    return;
+  }
   if (!window._aktuelleListe) return;
   var l = window._aktuelleListe;
   // Nur die Filter-Leiste + Liste neu rendern, Sticky-Region behalten
@@ -1400,27 +1418,12 @@ function aktualisiereTreffer(l) {
   var voll = n.filter(istVollstaendig);
   var g = filterAnwenden(voll);
   var unvoll = n.length - voll.length;
-  // Bezirks-Verteilung berechnen -- hilft bei der Diagnose ob die
-  // PLZ-/Polygon-Zuordnung im Mapper geklappt hat
-  var bzZahlen = { AK: 0, NR: 0, WW: 0, HE: 0, SO: 0 };
-  for (var bzI = 0; bzI < voll.length; bzI++) {
-    var bz = tourBezirk(voll[bzI]);
-    if (bzZahlen[bz] !== undefined) bzZahlen[bz]++;
-  }
   var el = document.getElementById('filter-treffer');
   if (el) {
     var txt = '<strong>' + g.length + '</strong> von <strong>' + voll.length + '</strong> Touren angezeigt';
     if (unvoll > 0) {
       txt += ' · <span class="treffer-extra">+' + unvoll + ' in Vorbereitung</span>';
     }
-    // Bezirks-Aufschluesselung in kleiner Schrift dahinter
-    txt += '<div class="bezirks-stats">'
-      + 'AK: <strong>' + bzZahlen.AK + '</strong> · '
-      + 'NR: <strong>' + bzZahlen.NR + '</strong> · '
-      + 'WW: <strong>' + bzZahlen.WW + '</strong> · '
-      + 'HE: <strong>' + bzZahlen.HE + '</strong> · '
-      + 'SO: <strong>' + bzZahlen.SO + '</strong>'
-      + '</div>';
     el.innerHTML = txt;
   }
 }
@@ -1538,8 +1541,15 @@ function baueListenEintrag(n, slug, detailTyp, inVorbereitung) {
 }
 
 function renderEtappenListe(ziel, slug, info, zurueckSlug, detailTyp) {
-  // Filter-State bei jedem Aufruf frisch initialisieren (Multi-Select-Objekte)
-  FILTER_STATE = { sw: {}, dauer: {}, km: {}, bezirk: {} };
+  // Wir kehren ggf. aus der Karten-Ansicht zurueck -- alten Refresh-Callback
+  // verwerfen, sonst zeigt rerenderListe() ggf. auf eine nicht mehr passende Map.
+  window._tourenKarteRefresh = null;
+  // Filter-State nur resetten, wenn wir tatsächlich eine ANDERE Liste öffnen.
+  // Wechsel Liste -> Karte -> Liste (gleicher slug) soll Auswahl erhalten.
+  var letzterSlug = window._aktuelleListe && window._aktuelleListe.slug;
+  if (letzterSlug !== slug) {
+    FILTER_STATE = { sw: {}, dauer: {}, km: {}, bezirk: {} };
+  }
   window._aktuelleListe = { slug: slug, info: info, detailTyp: detailTyp };
 
   var daten = window[info.name];
@@ -1862,6 +1872,14 @@ function filterDropdownConfirmTermine(id, group) {
   // Termin-Refresh via gespeichertem Context (_aktuelleTermine = {slug, info})
   var ctx = window._aktuelleTermine;
   if (ctx) {
+    // Auf der Veranstaltungs-Karte? Dann Marker neu zeichnen statt Liste.
+    if (typeof window._termineKarteRefresh === 'function' &&
+        document.querySelector('.listen-karte-map')) {
+      var fWrapK = document.getElementById('termine-filter-wrap');
+      if (fWrapK) fWrapK.innerHTML = termineFilterUI();
+      window._termineKarteRefresh();
+      return;
+    }
     var fLeiste = document.getElementById('filter-leiste-wrapper');
     var liste   = document.getElementById('termine-liste');
     if (fLeiste) fLeiste.innerHTML = termineFilterUI();
@@ -1889,9 +1907,14 @@ function termineEigenAnwenden() {
   TERMIN_FILTER.eigenBis = bis;
   // Sicherstellen dass eigen-Filter im Datum-Set ist
   TERMIN_FILTER.datum.eigen = true;
-  // Liste neu rendern
+  // Auf der Karte? Marker neu zeichnen, sonst Liste.
   var ctx = window._aktuelleTermine;
   if (ctx) {
+    if (typeof window._termineKarteRefresh === 'function' &&
+        document.querySelector('.listen-karte-map')) {
+      window._termineKarteRefresh();
+      return;
+    }
     var liste = document.getElementById('termine-liste');
     if (liste) liste.innerHTML = baueTermineListe(ctx.slug, ctx.info);
     if (typeof aktualisiereTermineTreffer === 'function') aktualisiereTermineTreffer(ctx);
@@ -1930,6 +1953,12 @@ function setzeTermineSuche(val) {
   _termineSucheTimer = setTimeout(function() {
     var l = window._aktuelleTermine;
     if (!l) return;
+    // Auf der Karte? Marker neu zeichnen statt Liste.
+    if (typeof window._termineKarteRefresh === 'function' &&
+        document.querySelector('.listen-karte-map')) {
+      window._termineKarteRefresh();
+      return;
+    }
     // NUR die Liste neu rendern -- das Filter-Wrap bleibt unangetastet,
     // sodass das Such-Input seinen Fokus behaelt.
     var liste = document.getElementById('termine-liste');
@@ -2130,7 +2159,14 @@ function aktualisiereTermineTreffer(l) {
 }
 
 function renderTermine(ziel, slug, l) {
-  TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '', eigenVon: '', eigenBis: '' };
+  // Karten-Refresh-Callback verwerfen (Wechsel von Karte -> Liste)
+  window._termineKarteRefresh = null;
+  // TERMIN_FILTER nur resetten, wenn wir tatsächlich auf eine andere Termin-Seite
+  // wechseln. Wechsel Liste <-> Karte (gleicher slug) erhaelt die Auswahl.
+  var letzterSlug = window._aktuelleTermine && window._aktuelleTermine.slug;
+  if (letzterSlug !== slug) {
+    TERMIN_FILTER = { datum: {}, bezirk: {}, art: {}, suche: '', eigenVon: '', eigenBis: '' };
+  }
   window._aktuelleTermine = { slug: slug, info: l };
 
   // Einmaliges Deduplizieren bei erstem Aufruf — schützt vor Mehrfach-Laden
@@ -3209,7 +3245,12 @@ function setzeGefiltertSuche(val) {
   // und der Tipp-Flow stockt.
   if (_gefiltertSucheTimer) clearTimeout(_gefiltertSucheTimer);
   _gefiltertSucheTimer = setTimeout(function() {
-    refreshGefiltertListe();
+    if (typeof window._poiKarteRefresh === 'function' &&
+        document.querySelector('.listen-karte-map')) {
+      window._poiKarteRefresh();
+    } else {
+      refreshGefiltertListe();
+    }
   }, 150);
 }
 
@@ -3226,7 +3267,14 @@ function refreshGefiltertView() {
 
   var filterWrap = document.getElementById('gefiltert-filter-wrap');
   if (filterWrap) filterWrap.innerHTML = gefiltertFilterUI(ctx.info);
-  refreshGefiltertListe();
+
+  // Sind wir gerade auf der POI-Karte? Dann Marker neu zeichnen statt Liste.
+  if (typeof window._poiKarteRefresh === 'function' &&
+      document.querySelector('.listen-karte-map')) {
+    window._poiKarteRefresh();
+  } else {
+    refreshGefiltertListe();
+  }
 
   if (warSearch && filterWrap) {
     var neu = filterWrap.querySelector('.filter-such-input');
@@ -3255,11 +3303,11 @@ function gefiltertItemTyp(item, l) {
   return 'sonstige';
 }
 
-function baueGefiltertListe(slug, l) {
-  var rohdaten = window[l.datenName] || [];
+// Zentrale POI-Filter-Funktion. Wird sowohl von der Liste (baueGefiltertListe)
+// als auch von der POI-Karte (renderPoiKarte) genutzt, damit Liste und Karte
+// IMMER dieselbe Auswahl zeigen.
+function filterPoiItems(rohdaten, l) {
   var suche = (GEFILTERT_STATE.suche || '').toLowerCase().trim();
-
-  // Multi-Select-Filter: leer = kein Filter, alle aktiv = kein Filter
   var typKeys = Object.keys(GEFILTERT_STATE.typ);
   var bezKeys = Object.keys(GEFILTERT_STATE.bezirk);
   var typOptsCount = (l.filterTypen || []).filter(function(t) { return t.key !== 'alle'; }).length;
@@ -3267,7 +3315,7 @@ function baueGefiltertListe(slug, l) {
   var typFilterAktiv = typKeys.length > 0 && typKeys.length < typOptsCount;
   var bezFilterAktiv = bezKeys.length > 0 && bezKeys.length < bezOptsCount;
 
-  var gefiltert = rohdaten.filter(function(item) {
+  return rohdaten.filter(function(item) {
     if (typFilterAktiv) {
       if (!GEFILTERT_STATE.typ[gefiltertItemTyp(item, l)]) return false;
     }
@@ -3281,6 +3329,11 @@ function baueGefiltertListe(slug, l) {
     }
     return true;
   });
+}
+
+function baueGefiltertListe(slug, l) {
+  var rohdaten = window[l.datenName] || [];
+  var gefiltert = filterPoiItems(rohdaten, l);
 
   if (!gefiltert.length) {
     return { html: '<div class="hinweis">Keine Einträge passen zu deiner Auswahl.</div>',
@@ -3324,7 +3377,14 @@ function baueGefiltertListe(slug, l) {
 }
 
 function renderGefiltertListe(ziel, slug, l) {
-  GEFILTERT_STATE = { typ: {}, bezirk: {}, suche: '' };
+  // Karten-Refresh-Callback verwerfen (Wechsel von Karte -> Liste)
+  window._poiKarteRefresh = null;
+  // GEFILTERT_STATE nur resetten wenn wir tatsächlich auf eine andere Liste
+  // wechseln. Wechsel Liste <-> Karte (gleicher slug) erhaelt die Auswahl.
+  var letzterSlug = window._aktuelleGefiltert && window._aktuelleGefiltert.slug;
+  if (letzterSlug !== slug) {
+    GEFILTERT_STATE = { typ: {}, bezirk: {}, suche: '' };
+  }
   window._aktuelleGefiltert = { slug: slug, info: l };
 
   var rohdaten = window[l.datenName] || [];
@@ -5739,6 +5799,227 @@ if (document.readyState === 'loading') {
 // Marker-Popup hat Link zur Detail-Seite mit "zurueck=karte-liste/<slug>".
 // ════════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// TOUREN-KARTE: gemeinsamer FILTER_STATE mit der Listen-Ansicht.
+// Wechsel Liste <-> Karte erhaelt die Auswahl. Filter: Schwierigkeit,
+// Dauer, Länge, Region (alle Multi-Select-Dropdowns wie auf der Liste).
+// ════════════════════════════════════════════════════════════════
+function renderTourenKarte(ziel, slug, info, datenName, detailKey) {
+  // Alten Refresh-Callback aus einer eventuell vorherigen Karten-Ansicht
+  // verwerfen, damit rerenderListe() ihn nicht versehentlich noch aufruft.
+  window._tourenKarteRefresh = null;
+
+  var rohDaten = window[datenName] || [];
+  if (!rohDaten.length) {
+    ziel.innerHTML = navBar('liste/' + slug, info.breadcrumb + ' › <strong>Karte</strong>')
+      + '<div class="hinweis">Daten noch nicht verfügbar.</div><div class="spacer"></div>';
+    return;
+  }
+
+  // Normalisieren UND globalIdx merken (fuer Detail-Link aus Popup).
+  // Ohne Track keine Geo-Position -> aussortieren.
+  var alleNorm = [];
+  var ohneGeoCount = 0;
+  for (var i = 0; i < rohDaten.length; i++) {
+    var n = normalisiere(rohDaten[i]);
+    n._globalIdx = i;
+    if (n._track && n._track.length && n._track[0] && n._track[0].length) {
+      var p0 = n._track[0][0];
+      if (p0 && p0.length >= 2) {
+        n._lat = p0[1];
+        n._lng = p0[0];
+        alleNorm.push(n);
+        continue;
+      }
+    }
+    ohneGeoCount++;
+  }
+
+  // Eindeutige Karten-ID
+  var mapId = 'tkarte-' + Math.random().toString(36).slice(2);
+
+  // Filter-Leiste rendern (identisch zur Listenansicht, gleicher FILTER_STATE)
+  function baueFilterHtml() {
+    return '<div id="filter-leiste-wrapper">' + filterUI() + '</div>';
+  }
+
+  var trefferTxt = '0 von ' + alleNorm.length + ' Touren angezeigt';
+  if (ohneGeoCount > 0) trefferTxt += ' · ' + ohneGeoCount + ' ohne Track';
+
+  ziel.innerHTML =
+    '<div class="sticky-region">'
+      + navBar('liste/' + slug, info.breadcrumb + ' › <strong>Karte</strong>')
+      + baueFilterHtml()
+    + '</div>'
+    + '<div id="filter-treffer" class="filter-treffer">' + trefferTxt + '</div>'
+    + '<div class="listen-karte-map-wrap">'
+      + '<div id="' + mapId + '" class="listen-karte-map"></div>'
+    + '</div>'
+    + '<div class="spacer"></div>';
+
+  // Karte initialisieren
+  ladeKartenPlugins().then(function() {
+    if (!window.L) return;
+    var map = L.map(mapId);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap-Mitwirkende', maxZoom: 19
+    }).addTo(map);
+    zeichneLandkreisGrenzen(map);
+    var markerGroup = L.layerGroup().addTo(map);
+
+    function refreshMarker() {
+      markerGroup.clearLayers();
+      // Gleiche Filter-Logik wie auf der Liste
+      var gefiltert = filterAnwenden(alleNorm);
+      var bounds = [];
+      for (var k = 0; k < gefiltert.length; k++) {
+        var n = gefiltert[k];
+        if (n._lat == null || n._lng == null) continue;
+        var detailUrl = '#detail-karte/' + detailKey + '/' + slug + '_' + n._globalIdx;
+        var popup = '<strong>' + escapeHtml(n.titel) + '</strong>';
+        if (n.km) popup += '<br><small>' + escapeHtml(n.km) + (n.dauer ? ' · ' + escapeHtml(n.dauer) : '') + '</small>';
+        popup += '<br><a href="' + detailUrl + '" class="listen-karte-popup-link">Details &rsaquo;</a>';
+        var m = L.marker([n._lat, n._lng]).bindPopup(popup);
+        markerGroup.addLayer(m);
+        bounds.push([n._lat, n._lng]);
+      }
+
+      // Treffer-Zaehler aktualisieren
+      var trefferEl = document.getElementById('filter-treffer');
+      if (trefferEl) {
+        var t = gefiltert.length + ' von ' + alleNorm.length + ' Touren angezeigt';
+        if (ohneGeoCount > 0) t += ' · ' + ohneGeoCount + ' ohne Track';
+        trefferEl.textContent = t;
+      }
+
+      // Auto-Zoom nur beim ersten Treffersatz (sonst stoert das beim Filtern)
+      if (bounds.length && !map._tourenBoundsGesetzt) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        map._tourenBoundsGesetzt = true;
+      } else if (!bounds.length && !map._tourenBoundsGesetzt) {
+        map.setView([50.55, 7.65], 9);
+        map._tourenBoundsGesetzt = true;
+      }
+    }
+
+    // Refresh-Callback fuer den Bestaetigen-Button registrieren
+    window._tourenKarteRefresh = refreshMarker;
+
+    refreshMarker();
+    setTimeout(function() { map.invalidateSize(); }, 120);
+  });
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// POI-KARTE: gemeinsamer GEFILTERT_STATE mit der Listen-Ansicht.
+// 1:1 dieselben Filter (Art, Region, Suche) wie auf der Liste; Wechsel
+// zwischen Liste und Karte erhaelt die Auswahl.
+// ════════════════════════════════════════════════════════════════
+function renderPoiKarte(ziel, slug, l) {
+  // Aktive Refresh-Callbacks aus anderen Karten verwerfen
+  window._tourenKarteRefresh = null;
+  window._poiKarteRefresh = null;
+
+  var rohdaten = window[l.datenName] || [];
+  if (!rohdaten.length) {
+    ziel.innerHTML =
+      '<div class="sticky-region">'
+      + navBar('liste/' + slug, l.breadcrumb + ' › <strong>Karte</strong>')
+      + '</div>'
+      + '<div class="hinweis">Daten noch nicht verfügbar.</div><div class="spacer"></div>';
+    return;
+  }
+
+  // Items mit Geo-Koordinaten extrahieren (einmalig, vor jedem Filter)
+  var mitGeo = [];
+  var ohneGeoCount = 0;
+  for (var i = 0; i < rohdaten.length; i++) {
+    var it = rohdaten[i];
+    var lat = it.lat, lng = it.lng;
+    if (lat == null || lng == null) {
+      ohneGeoCount++;
+      continue;
+    }
+    mitGeo.push({ _orig: it, _globalIdx: i, lat: lat, lng: lng });
+  }
+
+  // Damit filterDropdownConfirmListe / setzeGefiltertSuche den richtigen
+  // Kontext fuer den Karten-Refresh kennen.
+  window._aktuelleGefiltert = { slug: slug, info: l };
+
+  var mapId = 'pkarte-' + Math.random().toString(36).slice(2);
+
+  ziel.innerHTML =
+    '<div class="sticky-region">'
+      + navBar('liste/' + slug, l.breadcrumb + ' › <strong>Karte</strong>')
+      + '<div id="gefiltert-filter-wrap">' + gefiltertFilterUI(l) + '</div>'
+    + '</div>'
+    + '<div id="gefiltert-treffer" class="filter-treffer">… wird geladen …</div>'
+    + '<div class="listen-karte-map-wrap">'
+      + '<div id="' + mapId + '" class="listen-karte-map"></div>'
+    + '</div>'
+    + '<div class="spacer"></div>';
+
+  ladeKartenPlugins().then(function() {
+    if (!window.L) return;
+    var map = L.map(mapId);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap-Mitwirkende', maxZoom: 19
+    }).addTo(map);
+    zeichneLandkreisGrenzen(map);
+    var markerGroup = L.layerGroup().addTo(map);
+
+    function refresh() {
+      markerGroup.clearLayers();
+      // Gefilterte Items (zentrale Funktion -- identisch zur Liste)
+      var rohItems = window[l.datenName] || [];
+      var gefiltertItems = filterPoiItems(rohItems, l);
+
+      // Index-Lookup fuer schnellen Filter-Check
+      var gefiltertSet = {};
+      for (var k = 0; k < gefiltertItems.length; k++) {
+        gefiltertSet[rohItems.indexOf(gefiltertItems[k])] = true;
+      }
+
+      var bounds = [];
+      var gezeigt = 0;
+      for (var n = 0; n < mitGeo.length; n++) {
+        var e = mitGeo[n];
+        if (!gefiltertSet[e._globalIdx]) continue;
+        var detailUrl = '#detail-karte/' + l.detailKey + '/' + slug + '_' + e._globalIdx;
+        var popup = '<strong>' + escapeHtml(e._orig.name || '') + '</strong>';
+        if (e._orig.ort) popup += '<br><small>' + escapeHtml(e._orig.ort) + '</small>';
+        popup += '<br><a href="' + detailUrl + '" class="listen-karte-popup-link">Details &rsaquo;</a>';
+        var m = L.marker([e.lat, e.lng]).bindPopup(popup);
+        markerGroup.addLayer(m);
+        bounds.push([e.lat, e.lng]);
+        gezeigt++;
+      }
+
+      var trefferEl = document.getElementById('gefiltert-treffer');
+      if (trefferEl) {
+        var t = '<strong>' + gezeigt + '</strong> von <strong>' + (mitGeo.length + ohneGeoCount) + '</strong> angezeigt';
+        if (ohneGeoCount > 0) t += ' · ' + ohneGeoCount + ' ohne Geo-Daten';
+        trefferEl.innerHTML = t;
+      }
+
+      if (bounds.length && !map._poiBoundsGesetzt) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        map._poiBoundsGesetzt = true;
+      } else if (!bounds.length && !map._poiBoundsGesetzt) {
+        map.setView([50.55, 7.65], 9);
+        map._poiBoundsGesetzt = true;
+      }
+    }
+
+    window._poiKarteRefresh = refresh;
+    refresh();
+    setTimeout(function() { map.invalidateSize(); }, 120);
+  });
+}
+
+
 function renderListenKarte(ziel, slug) {
   // Welche Datenquelle? POI-Liste (LISTEN[slug]) oder Touren (WANDER_DATEN / RAD_DATEN)?
   var info = null;       // Listen-Konfig (mit titel, breadcrumb, filterTypen)
@@ -5833,6 +6114,17 @@ function renderListenKarte(ziel, slug) {
       datenName = l.datenName;
       detailKey = l.detailKey;
     }
+  }
+
+  // Touren-Karte hat einen eigenen Render-Pfad: gleiche 4 Filter wie auf der
+  // Liste (Schwierigkeit, Dauer, Länge, Region), gemeinsamer FILTER_STATE.
+  if (modus === 'tour') {
+    return renderTourenKarte(ziel, slug, info, datenName, detailKey);
+  }
+  // POI-Karte (Ausflugsziele/Gastro/Unterkuenfte): nutzt GEFILTERT_STATE,
+  // damit Liste und Karte exakt dieselbe Auswahl zeigen.
+  if (modus === 'poi') {
+    return renderPoiKarte(ziel, slug, info);
   }
 
   if (!info || !datenName) {
@@ -6234,12 +6526,16 @@ function setzeListenKarteStandortMarker(map, lat, lng) {
 // ════════════════════════════════════════════════════════════════════════
 
 function renderVeranstaltungenKarte(ziel) {
+  // Karten-Refresh-Callbacks anderer Karten aufraeumen
+  window._tourenKarteRefresh = null;
+  window._poiKarteRefresh = null;
+  window._termineKarteRefresh = null;
+
   var alle = window.DATA_VERANSTALTUNGEN_ALLE || [];
   if (!alle.length) {
     ziel.innerHTML =
       '<div class="sticky-region">'
       + navBar('liste/veranstaltungen-alle', 'Veranstaltungen › <strong>Karte</strong>')
-      + intro('Veranstaltungen', '')
       + '</div>'
       + '<div class="hinweis">Keine Veranstaltungen verfügbar.</div>'
       + '<div class="spacer"></div>';
@@ -6260,278 +6556,78 @@ function renderVeranstaltungenKarte(ziel) {
     mitGeo.push({ _orig: ev, _globalIdx: idx, lat: lat, lng: lng });
   }
 
-  // State persistieren - aber wenn der User aus der Listen-Ansicht kommt und
-  // dort Filter aktiv hatte, sollen die in die Karte uebernommen werden.
-  window._listenKarteState = window._listenKarteState || {};
-  var state = window._listenKarteState['veranstaltungen-alle'];
-  // TERMIN_FILTER (Listen-State) als Quelle nutzen falls dort etwas gefiltert ist
-  var listeHatFilter = (Object.keys(TERMIN_FILTER.datum || {}).length > 0)
-                    || (Object.keys(TERMIN_FILTER.bezirk || {}).length > 0)
-                    || (Object.keys(TERMIN_FILTER.art || {}).length > 0);
-  if (!state || listeHatFilter) {
-    state = window._listenKarteState['veranstaltungen-alle'] = {
-      // Snapshot der Listen-Filter -- Liste und Karte teilen die Auswahl
-      datum:  Object.assign({}, TERMIN_FILTER.datum  || {}),
-      bezirk: Object.assign({}, TERMIN_FILTER.bezirk || {}),
-      art:    Object.assign({}, TERMIN_FILTER.art    || {}),
-      standortGefragt: false,
-      eigenerStandort: null
-    };
-  }
+  // Damit filterDropdownConfirmTermine + setzeTermineSuche + termineEigenAnwenden
+  // den Karten-Refresh ausloesen koennen.
+  window._aktuelleTermine = { slug: 'veranstaltungen-alle', info: {datenName:'DATA_VERANSTALTUNGEN_ALLE'} };
 
   var mapId = 'vkarte-' + Math.random().toString(36).slice(2);
 
-  // Filter-Optionen
-  var datumOpts = [
-    {key:'heute',  label:'Heute'},
-    {key:'woche',  label:'Diese Woche'},
-    {key:'monat',  label:'Dieser Monat'},
-    {key:'jahr',   label:'Aktuelles Jahr'},
-    {key:'dauer',  label:'Dauerveranstaltungen'},
-    {key:'eigen', label:'Eigener Zeitraum…'}
-  ];
-  var bezirkOpts = [
-    {key:'AK',     label:'Kreis Altenkirchen'},
-    {key:'NR',     label:'Kreis Neuwied'},
-    {key:'WW',     label:'Westerwaldkreis'},
-    {key:'HE',     label:'Hessen'},
-    {key:'SO',     label:'Sonstige'},
-    {key:'Hessen', label:'Hessen'},
-    {key:'NRW',    label:'NRW'}
-  ];
-  var artOpts = [
-    {key:'lit',      label:'WW-Lit'},
-    {key:'natur',    label:'Naturerlebnisse'},
-    {key:'sonstige', label:'Sonstige'}
-  ];
-
-  var html =
+  ziel.innerHTML =
     '<div class="sticky-region">'
-    + navBar('liste/veranstaltungen-alle', 'Veranstaltungen › <strong>Karte</strong>')
-    + intro('Veranstaltungen', '')
+      + navBar('liste/veranstaltungen-alle', 'Veranstaltungen › <strong>Karte</strong>')
+      + '<div id="termine-filter-wrap">' + termineFilterUI() + '</div>'
     + '</div>'
-    + '<div class="listen-karte-wrap">'
-    + '<div class="listen-karte-filter">'
-    + renderFilterDropdownVK('Datum', datumOpts, state.datum, 'datum', '📅')
-    + renderFilterDropdownVK('Region', bezirkOpts, state.bezirk, 'bezirk', '📍')
-    + renderFilterDropdownVK('Art', artOpts, state.art, 'art', '🎭')
-    + '<div class="lk-zaehler-row">'
-    +   '<small id="' + mapId + '-zaehler">'
-    +     mitGeo.length + ' Veranstaltungen mit Standort'
-    +     (ohneGeoCount > 0 ? ' (' + ohneGeoCount + ' ohne Geo-Daten)' : '')
-    +   '</small></div>'
-    + '</div>'
+    + '<div id="termine-treffer" class="filter-treffer">… wird geladen …</div>'
     + '<div class="listen-karte-map-wrap">'
-    +   '<div id="' + mapId + '" class="listen-karte-map"></div>'
+      + '<div id="' + mapId + '" class="listen-karte-map"></div>'
     + '</div>'
-    + '</div>';
-
-  ziel.innerHTML = html;
+    + '<div class="spacer"></div>';
 
   ladeKartenPlugins().then(function() {
-    initVeranstaltungenKarte(mapId, mitGeo, state);
-  });
-}
+    if (!window.L) return;
+    var map = L.map(mapId);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap-Mitwirkende', maxZoom: 19
+    }).addTo(map);
+    zeichneLandkreisGrenzen(map);
+    var markerGroup = L.layerGroup().addTo(map);
 
-
-// Wie renderFilterDropdown, aber fuer die Veranstaltungs-Karte (eigener
-// State-Pfad). Wir koennten beides vereinheitlichen, aber pragmatisch ist
-// die zweite Variante hier knapp und entkoppelt vom Listen-Karte-Pfad.
-function renderFilterDropdownVK(label, opts, stateObj, group, icon) {
-  icon = icon || '';
-  var aktivKeys = Object.keys(stateObj);
-  var summary;
-  if (aktivKeys.length === 0)               summary = '<em>nicht gefiltert</em>';
-  else if (aktivKeys.length === opts.length) summary = 'Alle';
-  else if (aktivKeys.length <= 2) {
-    var names = [];
-    for (var i = 0; i < opts.length; i++) if (stateObj[opts[i].key]) names.push(opts[i].label);
-    summary = names.join(', ');
-  } else summary = aktivKeys.length + ' gewählt';
-
-  var dropdownId = 'vfd-' + group + '-' + Math.random().toString(36).slice(2, 7);
-  var html = '<div class="filter-dropdown">'
-    + '<button type="button" class="filter-dropdown-head" onclick="toggleFilterDropdown(\'' + dropdownId + '\')">'
-    +   '<span class="filter-dropdown-label">' + icon + ' ' + escapeHtml(label) + '</span>'
-    +   '<span class="filter-dropdown-summary">' + summary + '</span>'
-    +   '<span class="filter-dropdown-arrow">▾</span>'
-    + '</button>'
-    + '<div class="filter-dropdown-panel" id="' + dropdownId + '">'
-    +   '<div class="filter-dropdown-opts">';
-  for (var j = 0; j < opts.length; j++) {
-    var o = opts[j];
-    html += '<label class="filter-dropdown-check">'
-      + '<input type="checkbox"' + (stateObj[o.key] ? ' checked' : '') + ' data-dd-key="' + escapeHtml(o.key) + '"> '
-      + escapeHtml(o.label) + '</label>';
-  }
-  html += '</div>'
-    +   '<div class="filter-dropdown-bar">'
-    +     '<button type="button" class="filter-dropdown-clear" onclick="filterDropdownClear(\'' + dropdownId + '\')">Zurücksetzen</button>'
-    +     '<button type="button" class="filter-dropdown-confirm" onclick="filterDropdownConfirmVK(\'' + dropdownId + '\',\'' + group + '\')">Bestätigen</button>'
-    +   '</div>'
-    + '</div></div>';
-  return html;
-}
-
-function filterDropdownConfirmVK(id, group) {
-  var panel = document.getElementById(id);
-  if (!panel) return;
-  var vkState = window._listenKarteState && window._listenKarteState['veranstaltungen-alle'];
-  if (vkState && vkState[group]) {
-    for (var k in vkState[group]) delete vkState[group][k];
-    var checks = panel.querySelectorAll('input[type="checkbox"]');
-    for (var i = 0; i < checks.length; i++) {
-      if (checks[i].checked) vkState[group][checks[i].getAttribute('data-dd-key')] = true;
-    }
-  }
-  panel.classList.remove('offen');
-  if (typeof window._veranstaltungenKarteRefresh === 'function') window._veranstaltungenKarteRefresh();
-  _updateFilterDropdownSummary(id, group, 'veranstaltungen-alle');
-}
-
-
-function initVeranstaltungenKarte(mapId, mitGeo, state) {
-  if (!window.L) return;
-  var map = L.map(mapId);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap-Mitwirkende',
-    maxZoom: 19
-  }).addTo(map);
-
-  zeichneLandkreisGrenzen(map);
-  var markerGroup = L.layerGroup().addTo(map);
-
-  // Hilfsfunktion: prueft ob ein Event-Item zur Datum-Auswahl passt
-  // (Logik analog termineFilterAnwenden())
-  function eventPasstZuDatum(item, datumKeys) {
-    var heute = new Date(); heute.setHours(0,0,0,0);
-    var pad = function(n) { return String(n).padStart(2,'0'); };
-    var heuteStr = heute.getFullYear() + '-' + pad(heute.getMonth()+1) + '-' + pad(heute.getDate());
-    var bisSonntag = (heute.getDay() === 0) ? 0 : (7 - heute.getDay());
-    var sonntag = new Date(heute);
-    sonntag.setDate(heute.getDate() + bisSonntag);
-    var sonntagStr = sonntag.getFullYear() + '-' + pad(sonntag.getMonth()+1) + '-' + pad(sonntag.getDate());
-    var monatsende = new Date(heute.getFullYear(), heute.getMonth()+1, 0);
-    var monatsendeStr = monatsende.getFullYear() + '-' + pad(monatsende.getMonth()+1) + '-' + pad(monatsende.getDate());
-    var jahresende = heute.getFullYear() + '-12-31';
-
-    var d = item.datumIso || '';
-    if (!d) return false;
-    var dEnde = item.datumBisIso || d;
-    if (dEnde < heuteStr) return false;
-    var istMehrtaegig = !!(item.datumBisIso && item.datumBisIso !== item.datumIso);
-
-    // ODER-Logik: passt zu mind. einem aktivierten Datum-Filter
-    for (var i = 0; i < datumKeys.length; i++) {
-      var k = datumKeys[i];
-      if (k === 'dauer') {
-        if (istMehrtaegig) return true;
-      } else {
-        var periodEnde;
-        if      (k === 'heute') periodEnde = heuteStr;
-        else if (k === 'woche') periodEnde = sonntagStr;
-        else if (k === 'monat') periodEnde = monatsendeStr;
-        else if (k === 'jahr')  periodEnde = jahresende;
-        else continue;
-        // Event-Start <= Period-Ende, Event-Ende >= heuteStr (oben schon geprueft)
-        if (d <= periodEnde) return true;
+    function refresh() {
+      markerGroup.clearLayers();
+      // Gleiche Filter-Logik wie auf der Liste
+      var rohItems = window.DATA_VERANSTALTUNGEN_ALLE || [];
+      var gefiltertItems = termineFilterAnwenden(rohItems);
+      var gefiltertSet = {};
+      for (var k = 0; k < gefiltertItems.length; k++) {
+        gefiltertSet[rohItems.indexOf(gefiltertItems[k])] = true;
       }
-    }
-    return false;
-  }
 
-  function refreshMarker() {
-    markerGroup.clearLayers();
-    var aktivDatum = state.datum;
-    var aktivBezirk = state.bezirk;
-    var aktivArt = state.art;
-    var datumKeys = Object.keys(aktivDatum);
-    var bezirkKeys = Object.keys(aktivBezirk);
-    var artKeys = Object.keys(aktivArt);
+      var bounds = [];
+      var gezeigt = 0;
+      for (var n = 0; n < mitGeo.length; n++) {
+        var e = mitGeo[n];
+        if (!gefiltertSet[e._globalIdx]) continue;
+        var detailUrl = '#detail-karte/event/veranstaltungen-alle_' + e._globalIdx;
+        var popup = '<strong>' + escapeHtml(e._orig.titel || '') + '</strong>';
+        if (e._orig.datum) popup += '<br><small>' + escapeHtml(e._orig.datum) + (e._orig.zeit ? ' · ' + escapeHtml(e._orig.zeit) : '') + '</small>';
+        if (e._orig.ort) popup += '<br><small>📍 ' + escapeHtml(e._orig.ort) + '</small>';
+        popup += '<br><a href="' + detailUrl + '" class="listen-karte-popup-link">Details &rsaquo;</a>';
+        var m = L.marker([e.lat, e.lng]).bindPopup(popup);
+        markerGroup.addLayer(m);
+        bounds.push([e.lat, e.lng]);
+        gezeigt++;
+      }
 
-    // Anzahl waehlbarer Optionen pro Gruppe (siehe renderVeranstaltungenKarte)
-    var datumOptsCount = 5;   // heute, woche, monat, jahr, dauer
-    var bezirkOptsCount = 5;  // AK, NR, WW, Hessen, NRW
-    var artOptsCount = 3;     // lit, natur, sonstige
+      var trefferEl = document.getElementById('termine-treffer');
+      if (trefferEl) {
+        var t = '<strong>' + gezeigt + '</strong> von <strong>' + (mitGeo.length + ohneGeoCount) + '</strong> angezeigt';
+        if (ohneGeoCount > 0) t += ' · ' + ohneGeoCount + ' ohne Geo-Daten';
+        trefferEl.innerHTML = t;
+      }
 
-    // Filter "echt aktiv" nur wenn 1..(n-1) gesetzt sind. Bei n von n
-    // Checkboxes behandeln wir das wie "kein Filter" -> alle anzeigen,
-    // inkl. Events ohne zugeordneten Bezirk/ohne Quelle. So kann die
-    // Karte ihre Summe maximieren.
-    var datumFilterAktiv  = datumKeys.length  > 0 && datumKeys.length  < datumOptsCount;
-    var bezirkFilterAktiv = bezirkKeys.length > 0 && bezirkKeys.length < bezirkOptsCount;
-    var artFilterAktiv    = artKeys.length    > 0 && artKeys.length    < artOptsCount;
-    var irgendwasAktiv    = datumKeys.length > 0 || bezirkKeys.length > 0 || artKeys.length > 0;
-
-    var zaehlEl = document.getElementById(mapId + '-zaehler');
-
-    if (!irgendwasAktiv) {
-      if (zaehlEl) zaehlEl.textContent = '0 Veranstaltungen angezeigt – bitte Filter aktivieren';
-      if (!map._listenKarteBoundsGesetzt) {
+      if (bounds.length && !map._vBoundsGesetzt) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        map._vBoundsGesetzt = true;
+      } else if (!bounds.length && !map._vBoundsGesetzt) {
         map.setView([50.55, 7.65], 9);
-        map._listenKarteBoundsGesetzt = true;
+        map._vBoundsGesetzt = true;
       }
-      return;
     }
 
-    var bounds = [];
-    var gezeigt = 0;
-
-    for (var n = 0; n < mitGeo.length; n++) {
-      var e = mitGeo[n];
-      var ev = e._orig;
-      if (datumFilterAktiv && !eventPasstZuDatum(ev, datumKeys)) continue;
-      if (bezirkFilterAktiv && !aktivBezirk[ev.bezirk || '']) continue;
-      if (artFilterAktiv) {
-        var artK = ev.quelle === 'lit' ? 'lit' : (ev.quelle === 'natur' ? 'natur' : 'sonstige');
-        if (!aktivArt[artK]) continue;
-      }
-      var detailUrl = '#detail-karte/event/veranstaltungen-alle_' + e._globalIdx;
-      var popupBody = '<strong>' + escapeHtml(ev.titel || ev.name || 'Veranstaltung') + '</strong>';
-      if (ev.datumIso) {
-        var d = ev.datumIso.split('-');
-        if (d.length === 3) popupBody += '<br><small>' + d[2] + '.' + d[1] + '.' + d[0] + (ev.zeit ? ' ' + escapeHtml(ev.zeit) : '') + '</small>';
-      }
-      if (ev.ort) popupBody += '<br><small>' + escapeHtml(ev.ort) + '</small>';
-      popupBody += '<br><a href="' + detailUrl + '" class="listen-karte-popup-link">Details &rsaquo;</a>';
-      var m = L.marker([e.lat, e.lng]).bindPopup(popupBody);
-      markerGroup.addLayer(m);
-      bounds.push([e.lat, e.lng]);
-      gezeigt++;
-    }
-
-    if (bounds.length && !map._listenKarteBoundsGesetzt) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-      map._listenKarteBoundsGesetzt = true;
-    }
-    if (zaehlEl) {
-      var gesamt = mitGeo.length + ohneGeoCount;
-      var txt = gezeigt + ' von ' + gesamt + ' angezeigt';
-      if (ohneGeoCount > 0) txt += ' · ' + ohneGeoCount + ' ohne Geo-Daten (nicht kartierbar)';
-      zaehlEl.textContent = txt;
-    }
-  }
-
-  // Refresh als globalen Callback hinterlegen, damit der Dropdown-Bestaetigen-Button
-  // ihn nach Auswahl-Aenderung aufrufen kann.
-  window._veranstaltungenKarteRefresh = refreshMarker;
-
-  refreshMarker();
-  setTimeout(function() { map.invalidateSize(); }, 120);
-
-  // Standort-Handling
-  if (state.eigenerStandort) {
-    setzeListenKarteStandortMarker(map, state.eigenerStandort[0], state.eigenerStandort[1]);
-  } else if (!state.standortGefragt) {
-    fuegeStandortBannerHinzu(map, {
-      onJa: function(coords) {
-        state.standortGefragt = true;
-        state.eigenerStandort = coords;
-      },
-      onNein: function() { state.standortGefragt = true; },
-      onFehler: function() { state.standortGefragt = true; }
-    });
-  }
+    window._termineKarteRefresh = refresh;
+    refresh();
+    setTimeout(function() { map.invalidateSize(); }, 120);
+  });
 }
 
 

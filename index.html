@@ -642,17 +642,19 @@ body.slideshow-aktiv { overflow: hidden; }
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(0,0,0,0.12);
 }
-.heute-karte-bild {
-  flex: 0 0 64px;
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
-  background-size: cover;
-  background-position: center;
-  background-color: #f0eee5;
-}
-.heute-karte-bild-platzhalter {
-  background-image: linear-gradient(135deg, #e6e3da 0%, #d4d0c2 100%);
+/* Icon-Box statt Bild auf der Startseite: robust, kein 404, kein
+   Layout-Sprung bei nicht ladbaren DataHub-Fotos. */
+.heute-karte-icon {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #e9f3ec 0%, #d6e8db 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  line-height: 1;
 }
 .heute-karte-text {
   flex: 1 1 0;
@@ -703,7 +705,7 @@ body.slideshow-aktiv { overflow: hidden; }
 @media (max-width: 380px) {
   .heute-section { padding: 4px 10px 14px; }
   .heute-karte { padding: 8px; gap: 8px; }
-  .heute-karte-bild { flex-basis: 52px; width: 52px; height: 52px; }
+  .heute-karte-icon { flex-basis: 48px; width: 48px; height: 48px; font-size: 24px; }
   .heute-karte-titel { font-size: 14px; }
   .heute-karte-meta { font-size: 12px; }
   .heute-karte-pfeil { padding: 0 2px; font-size: 22px; }
@@ -768,15 +770,6 @@ body.slideshow-aktiv { overflow: hidden; }
 }
 .termin-eigen-btn:hover, .termin-eigen-btn:active { background: #155030; }
 
-/* Bezirks-Verteilung unter Treffer-Anzeige (Diagnose-Hilfe) */
-.bezirks-stats {
-  font-size: 11px;
-  color: #888;
-  margin-top: 3px;
-  font-weight: 400;
-}
-.bezirks-stats strong { color: #555; font-weight: 700; }
-
 /* ════════════════════════════════════════════════════════════════
    BREADCRUMB: Listen-Titel groesser darstellen (kompensiert das
    Wegfallen der intro-Ueberschrift bei Listen + Veranstaltungen).
@@ -801,11 +794,19 @@ body.slideshow-aktiv { overflow: hidden; }
   display: flex;
   gap: 8px;
   align-items: stretch;
+  /* Stabile Mindesthoehe: verhindert dass das Layout springt, wenn ein
+     Dropdown-Head durch laengere Auswahl-Texte minimal hoeher wird. */
+  min-height: 44px;
+  margin-bottom: 8px;
 }
 .filter-row > .filter-dropdown {
   flex: 1 1 0;
   min-width: 0;   /* damit Flex-Kinder schrumpfen koennen */
   margin-bottom: 0;
+}
+.filter-row > .filter-dropdown .filter-dropdown-head {
+  /* Innerhalb der filter-row sollen alle Heads exakt gleich hoch sein */
+  height: 100%;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -905,15 +906,18 @@ body.slideshow-aktiv { overflow: hidden; }
 }
 .filter-dropdown-bar {
   display: flex;
-  gap: 8px;
+  /* Untereinander: auf schmalen Smartphones war "Bestaetigen" sonst
+     teilweise abgeschnitten. */
+  flex-direction: column;
+  gap: 6px;
   padding: 8px;
   border-top: 1px solid #e6e3da;
   background: #fafaf6;
 }
 .filter-dropdown-clear,
 .filter-dropdown-confirm {
-  flex: 1;
-  padding: 9px 12px;
+  width: 100%;
+  padding: 11px 12px;
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
