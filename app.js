@@ -5852,8 +5852,8 @@ function renderTourenKarte(ziel, slug, info, datenName, detailKey) {
       + baueFilterHtml()
     + '</div>'
     + '<div id="filter-treffer" class="filter-treffer">' + trefferTxt + '</div>'
-    + '<div class="listen-karte-map-wrap">'
-      + '<div id="' + mapId + '" class="listen-karte-map"></div>'
+    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+      + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '<div class="spacer"></div>';
 
@@ -5906,7 +5906,12 @@ function renderTourenKarte(ziel, slug, info, datenName, detailKey) {
     window._tourenKarteRefresh = refreshMarker;
 
     refreshMarker();
-    setTimeout(function() { map.invalidateSize(); }, 120);
+    // Mehrfaches invalidateSize: bei Fenster-Resizes / verzoegertem Layout
+    // (Inline-Style greift erst nach naechstem Render-Tick) hilft das,
+    // damit Leaflet die richtige Karten-Dimension erkennt.
+    setTimeout(function() { map.invalidateSize(); }, 60);
+    setTimeout(function() { map.invalidateSize(); }, 250);
+    setTimeout(function() { map.invalidateSize(); }, 600);
   });
 }
 
@@ -5956,8 +5961,8 @@ function renderPoiKarte(ziel, slug, l) {
       + '<div id="gefiltert-filter-wrap">' + gefiltertFilterUI(l) + '</div>'
     + '</div>'
     + '<div id="gefiltert-treffer" class="filter-treffer">… wird geladen …</div>'
-    + '<div class="listen-karte-map-wrap">'
-      + '<div id="' + mapId + '" class="listen-karte-map"></div>'
+    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+      + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '<div class="spacer"></div>';
 
@@ -6015,7 +6020,12 @@ function renderPoiKarte(ziel, slug, l) {
 
     window._poiKarteRefresh = refresh;
     refresh();
-    setTimeout(function() { map.invalidateSize(); }, 120);
+    // Mehrfaches invalidateSize: bei Fenster-Resizes / verzoegertem Layout
+    // (Inline-Style greift erst nach naechstem Render-Tick) hilft das,
+    // damit Leaflet die richtige Karten-Dimension erkennt.
+    setTimeout(function() { map.invalidateSize(); }, 60);
+    setTimeout(function() { map.invalidateSize(); }, 250);
+    setTimeout(function() { map.invalidateSize(); }, 600);
   });
 }
 
@@ -6222,8 +6232,8 @@ function renderListenKarte(ziel, slug) {
     + '</small></div>';
   html += '</div>';   // /listen-karte-filter
 
-  html += '<div class="listen-karte-map-wrap">'
-    + '<div id="' + mapId + '" class="listen-karte-map"></div>'
+  html += '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+    + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '</div>';   // /listen-karte-wrap
 
@@ -6477,7 +6487,9 @@ function initListenKarte(mapId, slug, info, mitGeo, modus, state) {
   refreshMarker();
   // Layout-Race-Condition: Karte braucht eine Pause, bis das Wrap-Element seine
   // Hoehe hat, bevor sie sich selbst layoutet.
-  setTimeout(function() { map.invalidateSize(); }, 120);
+  setTimeout(function() { map.invalidateSize(); }, 60);
+  setTimeout(function() { map.invalidateSize(); }, 250);
+  setTimeout(function() { map.invalidateSize(); }, 600);
 
   // STANDORT-HANDLING ----------------------------------------------------
   if (state.eigenerStandort) {
@@ -6568,8 +6580,8 @@ function renderVeranstaltungenKarte(ziel) {
       + '<div id="termine-filter-wrap">' + termineFilterUI() + '</div>'
     + '</div>'
     + '<div id="termine-treffer" class="filter-treffer">… wird geladen …</div>'
-    + '<div class="listen-karte-map-wrap">'
-      + '<div id="' + mapId + '" class="listen-karte-map"></div>'
+    + '<div class="listen-karte-map-wrap" style="height:60vh;min-height:320px;position:relative;margin:0 12px 12px;">'
+      + '<div id="' + mapId + '" class="listen-karte-map" style="width:100%;height:100%;min-height:320px;border-radius:8px;overflow:hidden;"></div>'
     + '</div>'
     + '<div class="spacer"></div>';
 
@@ -6626,7 +6638,12 @@ function renderVeranstaltungenKarte(ziel) {
 
     window._termineKarteRefresh = refresh;
     refresh();
-    setTimeout(function() { map.invalidateSize(); }, 120);
+    // Mehrfaches invalidateSize: bei Fenster-Resizes / verzoegertem Layout
+    // (Inline-Style greift erst nach naechstem Render-Tick) hilft das,
+    // damit Leaflet die richtige Karten-Dimension erkennt.
+    setTimeout(function() { map.invalidateSize(); }, 60);
+    setTimeout(function() { map.invalidateSize(); }, 250);
+    setTimeout(function() { map.invalidateSize(); }, 600);
   });
 }
 
